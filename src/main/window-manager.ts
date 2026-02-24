@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, nativeImage, screen } from 'electron'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 
@@ -19,12 +19,15 @@ function createMainWindow(): BrowserWindow {
   const width = Math.min(DESIRED_WIDTH, workArea.width)
   const height = Math.min(DESIRED_HEIGHT, workArea.height)
 
+  const iconPath = path.join(__dirname, '../../assets/icon.png')
+
   mainWindow = new BrowserWindow({
     width,
     height,
     minWidth: 1000,
     minHeight: 600,
     title: 'Simple Git',
+    icon: nativeImage.createFromPath(iconPath),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 15, y: 15 },
     backgroundColor: '#1e1e1e',

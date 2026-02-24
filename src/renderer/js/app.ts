@@ -142,6 +142,7 @@ async function loadLocalChanges() {
         textarea.value = ''
         commitSelectedBtn = null
         await loadLocalChanges()
+        await refreshCommitList()
       } catch (err) {
         alert(`Commit failed: ${err}`)
       }
@@ -160,6 +161,7 @@ async function loadLocalChanges() {
         textarea.value = ''
         commitSelectedBtn = null
         await loadLocalChanges()
+        await refreshCommitList()
       } catch (err) {
         alert(`Commit failed: ${err}`)
       }
@@ -359,6 +361,14 @@ window.git.onOpenSettings(() => {
   settingsDialog.show()
 })
 
+// Watch for external git changes (commits, staging from terminal, other tools)
+window.git.onGitChanged(async () => {
+  await refreshCommitList()
+  if (viewMode === 'local-changes') {
+    await loadLocalChanges()
+  }
+})
+
 settingsDialog.setOnDiffViewModeChange(() => {
   showCurrentDiff()
 })
@@ -438,6 +448,18 @@ async function reloadLog() {
   await loadLog(branch)
   fileTree.clear()
   diffViewer.clear()
+}
+
+async function refreshCommitList() {
+  const branch = branchSelector.getCurrentBranch()
+  currentPage = 0
+  try {
+    const { commits, total } = await window.git.getLog(branch, 0, PAGE_SIZE)
+    allCommits = commits
+    commitList.setCommits(commits, total, false)
+  } catch (err) {
+    console.error('Failed to refresh commit list:', err)
+  }
 }
 
 // Wire up command palette

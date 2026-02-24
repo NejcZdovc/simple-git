@@ -48,14 +48,39 @@ function render() {
     const c = commits[i]
     const row = document.createElement('div')
     row.className =
-      'flex flex-col px-3 py-2 cursor-pointer transition-[background] duration-100 border-b border-white/3 select-none hover:bg-white/4'
+      'flex items-stretch cursor-pointer transition-[background] duration-100 border-b border-white/3 select-none hover:bg-white/4'
     if (selectedHashes.has(c.hash)) {
       row.classList.add('bg-accent/15')
       row.classList.remove('hover:bg-white/4')
       row.classList.add('hover:bg-accent/20')
     }
 
-    row.innerHTML = `
+    // Graph lane: vertical line + circle
+    const lane = document.createElement('div')
+    lane.className = 'flex flex-col items-center w-[28px] shrink-0 py-0.5'
+
+    const topLine = document.createElement('div')
+    topLine.className = `w-[2px] flex-1 ${i === 0 ? 'bg-transparent' : 'bg-accent/40'}`
+    lane.appendChild(topLine)
+
+    const circle = document.createElement('div')
+    if (c.pushed) {
+      circle.className = 'w-[10px] h-[10px] rounded-full bg-accent shrink-0'
+    } else {
+      circle.className = 'w-[10px] h-[10px] rounded-full border-2 border-accent bg-transparent shrink-0'
+    }
+    lane.appendChild(circle)
+
+    const bottomLine = document.createElement('div')
+    bottomLine.className = `w-[2px] flex-1 ${i === commits.length - 1 ? 'bg-transparent' : 'bg-accent/40'}`
+    lane.appendChild(bottomLine)
+
+    row.appendChild(lane)
+
+    // Content
+    const content = document.createElement('div')
+    content.className = 'flex flex-col py-2 pr-3 min-w-0 flex-1'
+    content.innerHTML = `
       <div class="text-sm font-medium text-text-primary whitespace-nowrap overflow-hidden text-ellipsis mb-[3px]">${escapeHtml(c.message)}</div>
       <div class="flex items-center gap-2 text-xs text-text-secondary">
         <span class="font-mono text-text-muted">${c.hash.slice(0, 7)}</span>
@@ -63,6 +88,7 @@ function render() {
         <span class="whitespace-nowrap text-text-secondary shrink-0">${formatRelativeDate(c.date)}</span>
       </div>
     `
+    row.appendChild(content)
 
     row.addEventListener('click', (e) => handleClick(i, e))
     row.addEventListener('contextmenu', (e) => handleContextMenu(i, e))

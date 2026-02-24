@@ -41,6 +41,7 @@ interface GitApi {
       authorEmail: string
       date: string
       refs: string
+      pushed: boolean
     }[]
     total: number
   }>
@@ -59,6 +60,7 @@ interface GitApi {
 
   // Events
   onOpenSettings(callback: () => void): void
+  onGitChanged(callback: () => void): void
 }
 
 interface Window {

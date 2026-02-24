@@ -1,4 +1,4 @@
-import { dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   checkoutBranch,
   commitAll,
@@ -16,13 +16,21 @@ import {
   getLog,
   openRepo,
   revertFile,
+  setOnGitChange,
   squashCommits,
   stashAndCheckout,
+  withSuppressedWatcher,
   writeFileContent,
 } from './git-service'
 import { addProject, getProjects, getSettings, removeProject, setLastProject, updateSettings } from './store'
 
 function registerIpcHandlers(): void {
+  // Git file watcher — notify all renderer windows on external changes
+  setOnGitChange(() => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('git:changed')
+    }
+  })
   // Store
   ipcMain.handle('store:get-projects', () => getProjects())
   ipcMain.handle('store:add-project', (_e, path: string, name: string) => addProject(path, name))
@@ -48,22 +56,32 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:get-local-changes', () => getLocalChanges())
   ipcMain.handle('git:get-local-changes-with-stats', () => getLocalChangesWithStats())
   ipcMain.handle('git:get-local-file-diff', (_e, filePath: string) => getLocalFileDiff(filePath))
-  ipcMain.handle('git:discard-local-changes', () => discardLocalChanges())
-  ipcMain.handle('git:checkout-branch', (_e, branch: string) => checkoutBranch(branch))
-  ipcMain.handle('git:stash-and-checkout', (_e, branch: string) => stashAndCheckout(branch))
-  ipcMain.handle('git:discard-and-checkout', (_e, branch: string) => discardAndCheckout(branch))
+  ipcMain.handle('git:discard-local-changes', () => withSuppressedWatcher(() => discardLocalChanges()))
+  ipcMain.handle('git:checkout-branch', (_e, branch: string) => withSuppressedWatcher(() => checkoutBranch(branch)))
+  ipcMain.handle('git:stash-and-checkout', (_e, branch: string) =>
+    withSuppressedWatcher(() => stashAndCheckout(branch)),
+  )
+  ipcMain.handle('git:discard-and-checkout', (_e, branch: string) =>
+    withSuppressedWatcher(() => discardAndCheckout(branch)),
+  )
   ipcMain.handle('git:get-log', (_e, branch: string, page: number, pageSize: number) => getLog(branch, page, pageSize))
   ipcMain.handle('git:get-commit-files', (_e, hash: string) => getCommitFiles(hash))
   ipcMain.handle('git:get-file-diff', (_e, hash: string, filePath: string) => getFileDiff(hash, filePath))
-  ipcMain.handle('git:revert-file', (_e, hash: string, filePath: string) => revertFile(hash, filePath))
-  ipcMain.handle('git:drop-commit', (_e, hash: string) => dropCommit(hash))
-  ipcMain.handle('git:squash-commits', (_e, hashes: string[], message: string) => squashCommits(hashes, message))
+  ipcMain.handle('git:revert-file', (_e, hash: string, filePath: string) =>
+    withSuppressedWatcher(() => revertFile(hash, filePath)),
+  )
+  ipcMain.handle('git:drop-commit', (_e, hash: string) => withSuppressedWatcher(() => dropCommit(hash)))
+  ipcMain.handle('git:squash-commits', (_e, hashes: string[], message: string) =>
+    withSuppressedWatcher(() => squashCommits(hashes, message)),
+  )
   ipcMain.handle('git:get-commit-message', (_e, hash: string) => getCommitMessage(hash))
   ipcMain.handle('git:write-file-content', (_e, filePath: string, content: string) =>
     writeFileContent(filePath, content),
   )
-  ipcMain.handle('git:commit-all', (_e, message: string) => commitAll(message))
-  ipcMain.handle('git:commit-files', (_e, files: string[], message: string) => commitFiles(files, message))
+  ipcMain.handle('git:commit-all', (_e, message: string) => withSuppressedWatcher(() => commitAll(message)))
+  ipcMain.handle('git:commit-files', (_e, files: string[], message: string) =>
+    withSuppressedWatcher(() => commitFiles(files, message)),
+  )
 }
 
 export { registerIpcHandlers }

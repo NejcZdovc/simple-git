@@ -1,8 +1,13 @@
+import type { FSWatcher } from 'node:fs'
 import simpleGit, { type SimpleGit } from 'simple-git'
 import { getSettings } from './store'
 
 let git: SimpleGit | null = null
 let repoPath: string | null = null
+let gitWatchers: FSWatcher[] = []
+let onGitChange: (() => void) | null = null
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let suppressWatcher = false
 
 const HASH_RE = /^[0-9a-f]{4,40}$/i
 const MAX_DIFF_FILE_SIZE = 2 * 1024 * 1024 // 2 MB
@@ -38,6 +43,7 @@ interface CommitInfo {
   authorEmail: string
   date: string
   refs: string
+  pushed: boolean
 }
 
 interface BranchInfo {
@@ -60,6 +66,68 @@ interface FileDiff {
   tooLarge?: boolean
 }
 
+function stopWatching() {
+  for (const w of gitWatchers) {
+    w.close()
+  }
+  gitWatchers = []
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+}
+
+function emitChange() {
+  if (suppressWatcher) return
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null
+    onGitChange?.()
+  }, 500)
+}
+
+async function withSuppressedWatcher<T>(fn: () => Promise<T>): Promise<T> {
+  suppressWatcher = true
+  try {
+    return await fn()
+  } finally {
+    // Keep suppressed briefly so the fs events from our own operation are ignored
+    setTimeout(() => {
+      suppressWatcher = false
+    }, 600)
+  }
+}
+
+async function startWatching(repoDir: string) {
+  stopWatching()
+  const fs = await import('node:fs')
+  const pathMod = await import('node:path')
+
+  const gitDir = pathMod.join(repoDir, '.git')
+
+  // Watch refs/heads for commit changes (new commits, branch updates)
+  const refsDir = pathMod.join(gitDir, 'refs', 'heads')
+  try {
+    const w = fs.watch(refsDir, { recursive: true }, () => emitChange())
+    gitWatchers.push(w)
+  } catch {
+    // Directory may not exist yet
+  }
+
+  // Watch HEAD for branch switches
+  const headPath = pathMod.join(gitDir, 'HEAD')
+  try {
+    const w = fs.watch(headPath, () => emitChange())
+    gitWatchers.push(w)
+  } catch {
+    // ignore
+  }
+}
+
+function setOnGitChange(cb: () => void) {
+  onGitChange = cb
+}
+
 async function openRepo(path: string): Promise<boolean> {
   const instance = simpleGit(path)
   const isRepo = await instance.checkIsRepo()
@@ -68,6 +136,7 @@ async function openRepo(path: string): Promise<boolean> {
   }
   git = instance
   repoPath = path
+  await startWatching(path)
   return true
 }
 
@@ -162,17 +231,30 @@ async function getLog(
     '--',
   ])
 
+  // Find unpushed commits by checking what's ahead of origin/<branch>
+  const unpushedHashes = new Set<string>()
+  try {
+    const unpushedResult = await g.raw(['rev-list', `origin/${branch}..${branch}`])
+    for (const line of unpushedResult.trim().split('\n')) {
+      if (line) unpushedHashes.add(line)
+    }
+  } catch {
+    // No remote tracking branch — all commits are local-only
+  }
+
   const commits: CommitInfo[] = []
   const lines = logResult.trim().split('\n')
   for (let i = 0; i < lines.length; i += 6) {
     if (!lines[i]) break
+    const hash = lines[i]
     commits.push({
-      hash: lines[i],
+      hash,
       message: lines[i + 1],
       authorName: lines[i + 2],
       authorEmail: lines[i + 3],
       date: lines[i + 4],
       refs: lines[i + 5] || '',
+      pushed: unpushedHashes.size > 0 ? !unpushedHashes.has(hash) : true,
     })
   }
 
@@ -534,6 +616,8 @@ async function commitFiles(filePaths: string[], message: string): Promise<void> 
 
 export {
   openRepo,
+  setOnGitChange,
+  withSuppressedWatcher,
   getBranches,
   getLocalChanges,
   getLocalChangesWithStats,

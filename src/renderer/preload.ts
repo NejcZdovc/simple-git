@@ -38,4 +38,7 @@ contextBridge.exposeInMainWorld('git', {
   onOpenSettings: (callback: () => void) => {
     ipcRenderer.on('open-settings', () => callback())
   },
+  onGitChanged: (callback: () => void) => {
+    ipcRenderer.on('git:changed', () => callback())
+  },
 })

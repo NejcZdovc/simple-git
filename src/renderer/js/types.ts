@@ -5,6 +5,7 @@ export interface CommitInfo {
   authorEmail: string
   date: string
   refs: string
+  pushed: boolean
 }
 
 export interface BranchInfo {

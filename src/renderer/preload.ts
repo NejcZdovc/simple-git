@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('git', {
   openRepo: (path: string) => ipcRenderer.invoke('git:open-repo', path),
   getBranches: () => ipcRenderer.invoke('git:get-branches'),
   getLocalChanges: () => ipcRenderer.invoke('git:get-local-changes'),
+  getLocalChangesWithStats: () => ipcRenderer.invoke('git:get-local-changes-with-stats'),
+  getLocalFileDiff: (filePath: string) => ipcRenderer.invoke('git:get-local-file-diff', filePath),
   discardLocalChanges: () => ipcRenderer.invoke('git:discard-local-changes'),
   checkoutBranch: (branch: string) => ipcRenderer.invoke('git:checkout-branch', branch),
   stashAndCheckout: (branch: string) => ipcRenderer.invoke('git:stash-and-checkout', branch),
@@ -29,6 +31,8 @@ contextBridge.exposeInMainWorld('git', {
   getCommitMessage: (hash: string) => ipcRenderer.invoke('git:get-commit-message', hash),
   writeFileContent: (filePath: string, content: string) =>
     ipcRenderer.invoke('git:write-file-content', filePath, content),
+  commitAll: (message: string) => ipcRenderer.invoke('git:commit-all', message),
+  commitFiles: (files: string[], message: string) => ipcRenderer.invoke('git:commit-files', files, message),
 
   // Events
   onOpenSettings: (callback: () => void) => {

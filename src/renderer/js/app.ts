@@ -18,6 +18,156 @@ let currentFilePath: string | null = null
 let allCommits: CommitInfo[] = []
 let activePanel: 'commits' | 'files' = 'commits'
 let confirmedLargeFile: string | null = null
+let viewMode: 'commits' | 'local-changes' = 'commits'
+let commitSelectedBtn: HTMLButtonElement | null = null
+
+// Local changes mode DOM elements
+const localChangesBtn = document.getElementById('local-changes-btn')!
+const commitsBtn = document.getElementById('commits-btn')!
+const commitListEl = document.getElementById('commit-list')!
+const localChangesListEl = document.getElementById('local-changes-list')!
+const loadMoreContainer = document.getElementById('load-more-container')!
+const commitCountEl = document.getElementById('commit-count')!
+
+const activeBtnClasses = ['bg-accent/15', 'text-accent']
+const inactiveBtnClasses = ['bg-transparent', 'text-text-secondary']
+
+function setViewMode(mode: 'commits' | 'local-changes') {
+  viewMode = mode
+
+  if (mode === 'local-changes') {
+    commitsBtn.classList.remove(...activeBtnClasses)
+    commitsBtn.classList.add(...inactiveBtnClasses)
+    localChangesBtn.classList.remove(...inactiveBtnClasses)
+    localChangesBtn.classList.add(...activeBtnClasses)
+    commitListEl.classList.add('hidden')
+    loadMoreContainer.classList.add('hidden')
+    localChangesListEl.classList.remove('hidden')
+    commitCountEl.textContent = ''
+  } else {
+    localChangesBtn.classList.remove(...activeBtnClasses)
+    localChangesBtn.classList.add(...inactiveBtnClasses)
+    commitsBtn.classList.remove(...inactiveBtnClasses)
+    commitsBtn.classList.add(...activeBtnClasses)
+    localChangesListEl.classList.add('hidden')
+    commitListEl.classList.remove('hidden')
+  }
+}
+
+localChangesBtn.addEventListener('click', () => {
+  if (viewMode === 'local-changes') return
+  setViewMode('local-changes')
+  fileTree.setMultiSelect(true)
+  loadLocalChanges()
+})
+
+commitsBtn.addEventListener('click', () => {
+  if (viewMode === 'commits') return
+  setViewMode('commits')
+  fileTree.setMultiSelect(false)
+  currentFilePath = null
+  if (allCommits.length > 0) {
+    commitList.selectByIndex(0)
+  } else {
+    fileTree.clear()
+    diffViewer.clear()
+  }
+})
+
+async function loadLocalChanges() {
+  currentCommit = null
+  currentFilePath = null
+  confirmedLargeFile = null
+  fileTree.clear()
+  diffViewer.clear()
+
+  localChangesListEl.innerHTML =
+    '<div class="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>'
+
+  try {
+    const files = await window.git.getLocalChangesWithStats()
+
+    if (files.length === 0) {
+      localChangesListEl.innerHTML =
+        '<div class="flex items-center justify-center h-full text-text-muted text-sm">No local changes</div>'
+      fileTree.setFiles([], null)
+      commitSelectedBtn = null
+      return
+    }
+
+    fileTree.setFiles(files, null)
+
+    // Render commit UI
+    localChangesListEl.innerHTML = ''
+
+    const container = document.createElement('div')
+    container.className = 'flex flex-col gap-2 p-3 h-full'
+
+    const textarea = document.createElement('textarea')
+    textarea.className =
+      'w-full min-h-[120px] max-h-[300px] px-3 py-2.5 border border-border rounded-sm bg-bg-primary text-text-primary font-mono text-[13px] leading-relaxed resize-y outline-none focus:border-accent'
+    textarea.placeholder = 'Commit message...'
+    container.appendChild(textarea)
+
+    const btnRow = document.createElement('div')
+    btnRow.className = 'flex gap-2'
+
+    const commitAllBtn = document.createElement('button')
+    commitAllBtn.type = 'button'
+    commitAllBtn.className =
+      'flex-1 py-[7px] border-none rounded-sm text-[13px] font-medium cursor-pointer transition-all duration-150 font-[inherit] bg-accent text-white hover:bg-accent-hover'
+    commitAllBtn.textContent = 'Commit All'
+
+    const commitSelBtn = document.createElement('button')
+    commitSelBtn.type = 'button'
+    commitSelBtn.className =
+      'flex-1 py-[7px] border-none rounded-sm text-[13px] font-medium cursor-pointer transition-all duration-150 font-[inherit] bg-bg-card text-text-primary hover:bg-bg-card-hover disabled:opacity-50 disabled:cursor-default'
+    commitSelBtn.textContent = 'Commit Selected'
+    commitSelBtn.disabled = true
+    commitSelectedBtn = commitSelBtn
+
+    btnRow.appendChild(commitAllBtn)
+    btnRow.appendChild(commitSelBtn)
+    container.appendChild(btnRow)
+    localChangesListEl.appendChild(container)
+
+    commitAllBtn.addEventListener('click', async () => {
+      const message = textarea.value.trim()
+      if (!message) {
+        alert('Please enter a commit message')
+        return
+      }
+      try {
+        await window.git.commitAll(message)
+        textarea.value = ''
+        commitSelectedBtn = null
+        await loadLocalChanges()
+      } catch (err) {
+        alert(`Commit failed: ${err}`)
+      }
+    })
+
+    commitSelBtn.addEventListener('click', async () => {
+      const message = textarea.value.trim()
+      if (!message) {
+        alert('Please enter a commit message')
+        return
+      }
+      const selected = fileTree.getSelectedFiles()
+      if (selected.length === 0) return
+      try {
+        await window.git.commitFiles(selected, message)
+        textarea.value = ''
+        commitSelectedBtn = null
+        await loadLocalChanges()
+      } catch (err) {
+        alert(`Commit failed: ${err}`)
+      }
+    })
+  } catch (err) {
+    console.error('Failed to load local changes:', err)
+  }
+}
 
 // Wire up project selector
 projectSelector.setOnProjectChange(async (path) => {
@@ -118,6 +268,12 @@ commitList.setCallbacks({
 // Wire up file tree
 fileTree.setCallbacks({
   onFileSelect: async (path) => {
+    if (viewMode === 'local-changes') {
+      currentFilePath = path
+      confirmedLargeFile = null
+      await showCurrentDiff()
+      return
+    }
     if (!currentCommit) return
     currentFilePath = path
     confirmedLargeFile = null
@@ -135,6 +291,25 @@ fileTree.setCallbacks({
       alert(`Failed to revert file: ${err}`)
     }
   },
+  onSelectionChange: (paths) => {
+    if (commitSelectedBtn) {
+      if (paths.length === 0) {
+        commitSelectedBtn.disabled = true
+        commitSelectedBtn.textContent = 'Commit Selected'
+      } else {
+        commitSelectedBtn.disabled = false
+        commitSelectedBtn.textContent = `Commit Selected (${paths.length})`
+      }
+    }
+    if (paths.length > 1) {
+      diffViewer.clear()
+    } else if (paths.length === 1) {
+      // Deselected back to one file — show its diff
+      currentFilePath = paths[0]
+      confirmedLargeFile = null
+      showCurrentDiff()
+    }
+  },
 })
 
 // Wire up diff viewer refresh callback
@@ -148,9 +323,14 @@ function countLines(content: string): number {
 }
 
 async function showCurrentDiff() {
-  if (!currentCommit || !currentFilePath) return
+  if (!currentFilePath) return
+  if (viewMode !== 'local-changes' && !currentCommit) return
+
   try {
-    const diff = await window.git.getFileDiff(currentCommit.hash, currentFilePath)
+    const diff =
+      viewMode === 'local-changes'
+        ? await window.git.getLocalFileDiff(currentFilePath)
+        : await window.git.getFileDiff(currentCommit!.hash, currentFilePath)
 
     if (diff.tooLarge) {
       diffViewer.showTooLarge(diff.filePath)
@@ -158,7 +338,8 @@ async function showCurrentDiff() {
     }
 
     const lineCount = Math.max(countLines(diff.oldContent), countLines(diff.newContent))
-    const fileKey = `${currentCommit.hash}:${currentFilePath}`
+    const fileKey =
+      viewMode === 'local-changes' ? `local:${currentFilePath}` : `${currentCommit!.hash}:${currentFilePath}`
     if (lineCount > 2000 && confirmedLargeFile !== fileKey) {
       if (!confirm(`This file has ${lineCount} lines. Large diffs may be slow. Open anyway?`)) {
         diffViewer.clear()
@@ -167,7 +348,7 @@ async function showCurrentDiff() {
       confirmedLargeFile = fileKey
     }
 
-    await diffViewer.showDiff(diff, currentCommit.hash)
+    await diffViewer.showDiff(diff, viewMode === 'local-changes' ? 'local' : currentCommit!.hash)
   } catch (err) {
     console.error('Failed to get file diff:', err)
   }
@@ -224,6 +405,8 @@ async function openProject(path: string) {
     await window.git.openRepo(path)
     await window.git.setLastProject(path)
     projectSelector.setCurrentProject(path)
+    setViewMode('commits')
+    fileTree.setMultiSelect(false)
 
     const { branches, current } = await window.git.getBranches()
     branchSelector.setBranches(branches, current)
@@ -260,6 +443,48 @@ async function reloadLog() {
 // Wire up command palette
 async function openCommandPalette() {
   const paletteItems: PaletteItem[] = []
+
+  // Actions — only show the opposite of current mode, plus diff toggle
+  try {
+    await window.git.getBranches() // test if project is open
+    if (viewMode === 'commits') {
+      paletteItems.push({
+        id: 'action:local-changes',
+        label: 'View Working Copy',
+        detail: 'Show uncommitted working tree changes',
+        category: 'action',
+        data: 'local-changes',
+      })
+    } else {
+      paletteItems.push({
+        id: 'action:commits',
+        label: 'View History',
+        detail: 'Show commit history',
+        category: 'action',
+        data: 'commits',
+      })
+    }
+    const settings = await window.git.getSettings()
+    if (settings.diffViewMode === 'full') {
+      paletteItems.push({
+        id: 'action:diff-minimal',
+        label: 'Minimal Diff View',
+        detail: 'Show changes only',
+        category: 'action',
+        data: 'diff-minimal',
+      })
+    } else {
+      paletteItems.push({
+        id: 'action:diff-full',
+        label: 'Full Diff View',
+        detail: 'Show full file',
+        category: 'action',
+        data: 'diff-full',
+      })
+    }
+  } catch {
+    // ignore — no project open
+  }
 
   // Projects — always available
   try {
@@ -321,6 +546,27 @@ async function openCommandPalette() {
 
 commandPalette.setOnSelect(async (item) => {
   switch (item.category) {
+    case 'action':
+      if (item.data === 'local-changes') {
+        setViewMode('local-changes')
+        fileTree.setMultiSelect(true)
+        await loadLocalChanges()
+      } else if (item.data === 'commits') {
+        setViewMode('commits')
+        fileTree.setMultiSelect(false)
+        currentFilePath = null
+        if (allCommits.length > 0) {
+          commitList.selectByIndex(0)
+        } else {
+          fileTree.clear()
+          diffViewer.clear()
+        }
+      } else if (item.data === 'diff-minimal' || item.data === 'diff-full') {
+        const newMode = item.data === 'diff-minimal' ? 'minimal' : 'full'
+        await window.git.updateSettings({ diffViewMode: newMode })
+        await showCurrentDiff()
+      }
+      break
     case 'project':
       await openProject(item.data)
       break
@@ -359,6 +605,9 @@ commandPalette.setOnSelect(async (item) => {
       break
     }
     case 'commit': {
+      if (viewMode !== 'commits') {
+        setViewMode('commits')
+      }
       const index = allCommits.findIndex((c) => c.hash === item.data)
       if (index >= 0) {
         commitList.selectByIndex(index)
@@ -369,14 +618,16 @@ commandPalette.setOnSelect(async (item) => {
       activePanel = 'files'
       currentFilePath = item.data
       fileTree.selectByPath(item.data)
-      await showCurrentDiff()
+      if (viewMode === 'local-changes' || currentCommit) {
+        await showCurrentDiff()
+      }
       break
   }
 })
 
 // Wire up file search
 fileSearch.setOnSelect(async (path) => {
-  if (!currentCommit) return
+  if (viewMode !== 'local-changes' && !currentCommit) return
   activePanel = 'files'
   currentFilePath = path
   fileTree.selectByPath(path)

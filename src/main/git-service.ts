@@ -410,6 +410,91 @@ async function getCommitMessage(hash: string): Promise<string> {
   return (await g.raw(['log', '-1', '--format=%B', hash])).trim()
 }
 
+async function getLocalChangesWithStats(): Promise<FileChange[]> {
+  const g = ensureGit()
+  const status = await g.status()
+
+  const files: FileChange[] = []
+  for (const f of status.files) {
+    const fileStatus = f.working_dir === '?' ? 'A' : f.working_dir || f.index || 'M'
+    let insertions = 0
+    let deletions = 0
+
+    // Try to get numstat for tracked files
+    if (fileStatus !== 'A' && f.working_dir !== '?') {
+      try {
+        const numstat = await g.raw(['diff', '--numstat', '--', f.path])
+        const parts = numstat.trim().split('\t')
+        if (parts.length >= 2) {
+          insertions = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10)
+          deletions = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    files.push({ path: f.path, status: fileStatus, insertions, deletions })
+  }
+
+  return files
+}
+
+async function getLocalFileDiff(filePath: string): Promise<FileDiff> {
+  if (!repoPath) throw new Error('No repository opened')
+  safeResolvePath(repoPath, filePath)
+  const g = ensureGit()
+  const fs = await import('node:fs/promises')
+  const pathMod = await import('node:path')
+
+  const fullPath = pathMod.resolve(repoPath, filePath)
+
+  // Determine file status
+  const status = await g.status()
+  const fileInfo = status.files.find((f) => f.path === filePath)
+  if (!fileInfo) {
+    throw new Error(`File not found in local changes: ${filePath}`)
+  }
+
+  const fileStatus = fileInfo.working_dir === '?' ? 'A' : fileInfo.working_dir || fileInfo.index || 'M'
+
+  let oldContent = ''
+  let newContent = ''
+
+  // Check file size
+  try {
+    const stat = await fs.stat(fullPath)
+    if (stat.size > MAX_DIFF_FILE_SIZE) {
+      return { oldContent: '', newContent: '', filePath, status: fileStatus, tooLarge: true }
+    }
+  } catch {
+    // File might be deleted
+  }
+
+  if (fileStatus !== 'A' && fileInfo.working_dir !== '?') {
+    // Get HEAD version
+    try {
+      const headSize = Number.parseInt((await g.raw(['cat-file', '-s', `HEAD:${filePath}`])).trim(), 10)
+      if (headSize > MAX_DIFF_FILE_SIZE) {
+        return { oldContent: '', newContent: '', filePath, status: fileStatus, tooLarge: true }
+      }
+      oldContent = await g.raw(['show', `HEAD:${filePath}`])
+    } catch {
+      oldContent = ''
+    }
+  }
+
+  if (fileStatus !== 'D') {
+    try {
+      newContent = await fs.readFile(fullPath, 'utf-8')
+    } catch {
+      newContent = ''
+    }
+  }
+
+  return { oldContent, newContent, filePath, status: fileStatus }
+}
+
 async function writeFileContent(filePath: string, content: string): Promise<void> {
   if (!repoPath) throw new Error('No repository opened')
   const fullPath = safeResolvePath(repoPath, filePath)
@@ -417,10 +502,31 @@ async function writeFileContent(filePath: string, content: string): Promise<void
   await fs.writeFile(fullPath, content, 'utf-8')
 }
 
+async function commitAll(message: string): Promise<void> {
+  const g = ensureGit()
+  if (!message.trim()) throw new Error('Commit message cannot be empty')
+  await g.raw(['add', '-A'])
+  await g.raw(['commit', '-m', message])
+}
+
+async function commitFiles(filePaths: string[], message: string): Promise<void> {
+  if (!repoPath) throw new Error('No repository opened')
+  const g = ensureGit()
+  if (!message.trim()) throw new Error('Commit message cannot be empty')
+  if (filePaths.length === 0) throw new Error('No files specified')
+  for (const fp of filePaths) {
+    safeResolvePath(repoPath, fp)
+  }
+  await g.raw(['add', '--', ...filePaths])
+  await g.raw(['commit', '-m', message, '--', ...filePaths])
+}
+
 export {
   openRepo,
   getBranches,
   getLocalChanges,
+  getLocalChangesWithStats,
+  getLocalFileDiff,
   discardLocalChanges,
   checkoutBranch,
   stashAndCheckout,
@@ -433,5 +539,7 @@ export {
   squashCommits,
   getCommitMessage,
   writeFileContent,
+  commitAll,
+  commitFiles,
 }
 export type { CommitInfo, BranchInfo, FileChange, FileDiff }

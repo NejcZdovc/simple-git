@@ -1,6 +1,8 @@
 import { dialog, ipcMain } from 'electron'
 import {
   checkoutBranch,
+  commitAll,
+  commitFiles,
   discardAndCheckout,
   discardLocalChanges,
   dropCommit,
@@ -9,6 +11,8 @@ import {
   getCommitMessage,
   getFileDiff,
   getLocalChanges,
+  getLocalChangesWithStats,
+  getLocalFileDiff,
   getLog,
   openRepo,
   revertFile,
@@ -42,6 +46,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:open-repo', (_e, path: string) => openRepo(path))
   ipcMain.handle('git:get-branches', () => getBranches())
   ipcMain.handle('git:get-local-changes', () => getLocalChanges())
+  ipcMain.handle('git:get-local-changes-with-stats', () => getLocalChangesWithStats())
+  ipcMain.handle('git:get-local-file-diff', (_e, filePath: string) => getLocalFileDiff(filePath))
   ipcMain.handle('git:discard-local-changes', () => discardLocalChanges())
   ipcMain.handle('git:checkout-branch', (_e, branch: string) => checkoutBranch(branch))
   ipcMain.handle('git:stash-and-checkout', (_e, branch: string) => stashAndCheckout(branch))
@@ -56,6 +62,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:write-file-content', (_e, filePath: string, content: string) =>
     writeFileContent(filePath, content),
   )
+  ipcMain.handle('git:commit-all', (_e, message: string) => commitAll(message))
+  ipcMain.handle('git:commit-files', (_e, files: string[], message: string) => commitFiles(files, message))
 }
 
 export { registerIpcHandlers }

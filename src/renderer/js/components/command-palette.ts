@@ -2,7 +2,7 @@ export interface PaletteItem {
   id: string
   label: string
   detail: string
-  category: 'project' | 'branch' | 'commit' | 'file'
+  category: 'project' | 'branch' | 'commit' | 'file' | 'action'
   data: string
 }
 
@@ -65,9 +65,10 @@ function fuzzyMatch(query: string, text: string): { match: boolean; score: numbe
   return { match: qi === lowerQuery.length, score }
 }
 
-const categoryOrder: PaletteItem['category'][] = ['project', 'branch', 'commit', 'file']
+const categoryOrder: PaletteItem['category'][] = ['action', 'project', 'branch', 'commit', 'file']
 
 const categoryLabels: Record<PaletteItem['category'], string> = {
+  action: 'Actions',
   project: 'Projects',
   branch: 'Branches',
   commit: 'Commits',
@@ -75,6 +76,7 @@ const categoryLabels: Record<PaletteItem['category'], string> = {
 }
 
 const badgeLabels: Record<PaletteItem['category'], string> = {
+  action: 'Action',
   project: 'Project',
   branch: 'Branch',
   commit: 'Commit',

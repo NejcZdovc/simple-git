@@ -13,16 +13,24 @@ let currentCommit: CommitInfo | null = null
 const collapsedDirs = new Set<string>()
 let flatFileOrder: string[] = []
 let selectedElement: HTMLElement | null = null
+const selectedFiles = new Set<string>()
+let multiSelectEnabled = false
 
 let onFileSelect: ((path: string) => void) | null = null
 let onFileRevert: ((path: string) => void) | null = null
+let onSelectionChange: ((paths: string[]) => void) | null = null
 
 const activeViewClasses = ['bg-accent/15', 'text-accent']
 const inactiveViewClasses = ['bg-transparent', 'text-text-muted']
 
-function setCallbacks(cbs: { onFileSelect: (path: string) => void; onFileRevert: (path: string) => void }) {
+function setCallbacks(cbs: {
+  onFileSelect: (path: string) => void
+  onFileRevert: (path: string) => void
+  onSelectionChange?: (paths: string[]) => void
+}) {
   onFileSelect = cbs.onFileSelect
   onFileRevert = cbs.onFileRevert
+  onSelectionChange = cbs.onSelectionChange || null
 }
 
 treeViewBtn.addEventListener('click', () => {
@@ -48,6 +56,7 @@ function setFiles(newFiles: FileChange[], commit: CommitInfo | null) {
   currentCommit = commit
   selectedFile = null
   selectedElement = null
+  selectedFiles.clear()
   collapsedDirs.clear()
   renderFiles()
   renderDetails()
@@ -116,6 +125,8 @@ function createFileTypeBadge(fileName: string): HTMLElement {
 }
 
 function showFileContextMenu(e: MouseEvent, f: FileChange) {
+  // On macOS, Ctrl+Click fires contextmenu — ignore it so multi-select works
+  if (e.ctrlKey && !e.metaKey) return
   e.preventDefault()
   e.stopPropagation()
   contextMenu.show(e.clientX, e.clientY, [
@@ -167,12 +178,16 @@ function renderListView() {
 
     item.title = f.path
     item.dataset.filePath = f.path
-    item.addEventListener('click', () => {
-      selectedFile = f.path
-      updateFileSelection(item)
-      onFileSelect?.(f.path)
+    if (selectedFiles.has(f.path)) item.classList.add('bg-accent/10')
+    item.addEventListener('click', (e) => handleFileClick(e, f.path, item))
+    item.addEventListener('contextmenu', (e) => {
+      if (e.ctrlKey && !e.metaKey && multiSelectEnabled) {
+        e.preventDefault()
+        handleFileClick(e, f.path, item)
+        return
+      }
+      showFileContextMenu(e, f)
     })
-    item.addEventListener('contextmenu', (e) => showFileContextMenu(e, f))
 
     treeEl.appendChild(item)
   }
@@ -186,6 +201,75 @@ function updateFileSelection(newEl: HTMLElement | null) {
     newEl.classList.add('bg-accent/15')
   }
   selectedElement = newEl
+}
+
+function updateMultiSelectHighlighting() {
+  const items = treeEl.querySelectorAll('[data-file-path]')
+  for (const item of items) {
+    const el = item as HTMLElement
+    const path = el.dataset.filePath!
+    if (selectedFiles.has(path)) {
+      el.classList.add('bg-accent/10')
+    } else {
+      el.classList.remove('bg-accent/10')
+    }
+    // Keep the primary selection highlight separate
+    if (path === selectedFile) {
+      el.classList.add('bg-accent/15')
+    } else if (!selectedFiles.has(path)) {
+      el.classList.remove('bg-accent/15')
+    }
+  }
+}
+
+function handleFileClick(e: MouseEvent, filePath: string, itemEl: HTMLElement) {
+  const isMetaClick = e.metaKey || e.ctrlKey
+  const isShiftClick = e.shiftKey
+
+  if (isMetaClick && multiSelectEnabled) {
+    // First multi-select click: include the previously single-selected file
+    if (selectedFiles.size === 0 && selectedFile && selectedFile !== filePath) {
+      selectedFiles.add(selectedFile)
+    }
+    // Toggle file in multi-select
+    if (selectedFiles.has(filePath)) {
+      selectedFiles.delete(filePath)
+    } else {
+      selectedFiles.add(filePath)
+    }
+    selectedFile = filePath
+    updateFileSelection(itemEl)
+    updateMultiSelectHighlighting()
+    onSelectionChange?.([...selectedFiles])
+    return
+  }
+
+  if (isShiftClick && multiSelectEnabled && selectedFile) {
+    // Range select
+    const startIdx = flatFileOrder.indexOf(selectedFile)
+    const endIdx = flatFileOrder.indexOf(filePath)
+    if (startIdx >= 0 && endIdx >= 0) {
+      const from = Math.min(startIdx, endIdx)
+      const to = Math.max(startIdx, endIdx)
+      selectedFiles.clear()
+      for (let i = from; i <= to; i++) {
+        selectedFiles.add(flatFileOrder[i])
+      }
+      selectedFile = filePath
+      updateFileSelection(itemEl)
+      updateMultiSelectHighlighting()
+      onSelectionChange?.([...selectedFiles])
+      return
+    }
+  }
+
+  // Plain click — single select, clear multi-select
+  selectedFiles.clear()
+  selectedFile = filePath
+  updateFileSelection(itemEl)
+  updateMultiSelectHighlighting()
+  onFileSelect?.(filePath)
+  onSelectionChange?.([...selectedFiles])
 }
 
 // --- Tree View ---
@@ -294,12 +378,16 @@ function renderTreeNode(node: TreeNode, container: HTMLElement, depth: number, p
 
     item.title = f.path
     item.dataset.filePath = f.path
-    item.addEventListener('click', () => {
-      selectedFile = f.path
-      updateFileSelection(item)
-      onFileSelect?.(f.path)
+    if (selectedFiles.has(f.path)) item.classList.add('bg-accent/10')
+    item.addEventListener('click', (e) => handleFileClick(e, f.path, item))
+    item.addEventListener('contextmenu', (e) => {
+      if (e.ctrlKey && !e.metaKey && multiSelectEnabled) {
+        e.preventDefault()
+        handleFileClick(e, f.path, item)
+        return
+      }
+      showFileContextMenu(e, f)
     })
-    item.addEventListener('contextmenu', (e) => showFileContextMenu(e, f))
 
     container.appendChild(item)
   }
@@ -341,6 +429,7 @@ function clear() {
   currentCommit = null
   selectedFile = null
   selectedElement = null
+  selectedFiles.clear()
   flatFileOrder = []
   treeEl.innerHTML =
     '<div class="flex items-center justify-center h-full text-text-muted text-sm">Select a commit</div>'
@@ -395,4 +484,25 @@ function escapeHtml(text: string): string {
   return div.innerHTML
 }
 
-export { setCallbacks, setFiles, clear, getFiles, selectNext, selectPrev, selectByPath }
+function getSelectedFiles(): string[] {
+  return [...selectedFiles]
+}
+
+function setMultiSelect(enabled: boolean) {
+  multiSelectEnabled = enabled
+  if (!enabled) {
+    selectedFiles.clear()
+  }
+}
+
+export {
+  setCallbacks,
+  setFiles,
+  clear,
+  getFiles,
+  getSelectedFiles,
+  setMultiSelect,
+  selectNext,
+  selectPrev,
+  selectByPath,
+}

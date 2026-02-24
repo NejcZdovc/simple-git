@@ -291,12 +291,12 @@ async function renderDiff() {
   headerEl.classList.remove('hidden')
   headerEl.innerHTML = `<span class="font-mono text-xs text-text-primary">${escapeHtml(diff.filePath)}</span>`
 
+  const settings = await window.git.getSettings()
+
   const lines = computeDiff(diff.oldContent, diff.newContent)
 
   const oldHighlighted = highlightLines(diff.oldContent, diff.filePath)
   const newHighlighted = highlightLines(diff.newContent, diff.filePath)
-
-  const settings = await window.git.getSettings()
   const displayLines: DisplayLine[] =
     settings.diffViewMode === 'minimal' ? filterMinimalLines(lines, 10, expandedSeparators) : lines
 

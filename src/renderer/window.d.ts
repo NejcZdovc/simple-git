@@ -21,6 +21,10 @@ interface GitApi {
   openRepo(path: string): Promise<boolean>
   getBranches(): Promise<{ branches: { name: string; current: boolean }[]; current: string }>
   getLocalChanges(): Promise<{ path: string; status: string }[]>
+  getLocalChangesWithStats(): Promise<{ path: string; status: string; insertions: number; deletions: number }[]>
+  getLocalFileDiff(
+    filePath: string,
+  ): Promise<{ oldContent: string; newContent: string; filePath: string; status: string; tooLarge?: boolean }>
   discardLocalChanges(): Promise<void>
   checkoutBranch(branch: string): Promise<void>
   stashAndCheckout(branch: string): Promise<void>
@@ -50,6 +54,8 @@ interface GitApi {
   squashCommits(hashes: string[], message: string): Promise<void>
   getCommitMessage(hash: string): Promise<string>
   writeFileContent(filePath: string, content: string): Promise<void>
+  commitAll(message: string): Promise<void>
+  commitFiles(files: string[], message: string): Promise<void>
 
   // Events
   onOpenSettings(callback: () => void): void

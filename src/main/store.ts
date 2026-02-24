@@ -38,7 +38,9 @@ function readJson<T>(filename: string, fallback: T): T {
 
 function writeJson<T>(filename: string, data: T): void {
   const filePath = getStorePath(filename)
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+  const tmpPath = `${filePath}.tmp`
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8')
+  fs.renameSync(tmpPath, filePath)
 }
 
 // Migrate old string[] format to ProjectEntry[]
@@ -91,9 +93,22 @@ function getSettings(): AppSettings {
   return { ...defaultSettings, ...readJson<Partial<AppSettings>>('settings.json', {}) }
 }
 
+const VALID_DROP_MODES: AppSettings['dropMode'][] = ['hard', 'soft']
+const VALID_DIFF_VIEW_MODES: AppSettings['diffViewMode'][] = ['full', 'minimal']
+
 function updateSettings(partial: Partial<AppSettings>): AppSettings {
   const settings = getSettings()
-  const updated = { ...settings, ...partial }
+  const sanitized: Partial<AppSettings> = {}
+  if ('dropMode' in partial && VALID_DROP_MODES.includes(partial.dropMode as AppSettings['dropMode'])) {
+    sanitized.dropMode = partial.dropMode
+  }
+  if (
+    'diffViewMode' in partial &&
+    VALID_DIFF_VIEW_MODES.includes(partial.diffViewMode as AppSettings['diffViewMode'])
+  ) {
+    sanitized.diffViewMode = partial.diffViewMode
+  }
+  const updated = { ...settings, ...sanitized }
   writeJson('settings.json', updated)
   return updated
 }

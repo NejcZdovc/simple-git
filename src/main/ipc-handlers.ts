@@ -1,6 +1,7 @@
 import { dialog, ipcMain } from 'electron'
 import {
   checkoutBranch,
+  discardAndCheckout,
   discardLocalChanges,
   dropCommit,
   getBranches,
@@ -44,6 +45,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:discard-local-changes', () => discardLocalChanges())
   ipcMain.handle('git:checkout-branch', (_e, branch: string) => checkoutBranch(branch))
   ipcMain.handle('git:stash-and-checkout', (_e, branch: string) => stashAndCheckout(branch))
+  ipcMain.handle('git:discard-and-checkout', (_e, branch: string) => discardAndCheckout(branch))
   ipcMain.handle('git:get-log', (_e, branch: string, page: number, pageSize: number) => getLog(branch, page, pageSize))
   ipcMain.handle('git:get-commit-files', (_e, hash: string) => getCommitFiles(hash))
   ipcMain.handle('git:get-file-diff', (_e, hash: string, filePath: string) => getFileDiff(hash, filePath))

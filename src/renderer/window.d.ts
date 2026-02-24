@@ -24,6 +24,7 @@ interface GitApi {
   discardLocalChanges(): Promise<void>
   checkoutBranch(branch: string): Promise<void>
   stashAndCheckout(branch: string): Promise<void>
+  discardAndCheckout(branch: string): Promise<void>
   getLog(
     branch: string,
     page: number,
@@ -43,7 +44,7 @@ interface GitApi {
   getFileDiff(
     hash: string,
     filePath: string,
-  ): Promise<{ oldContent: string; newContent: string; filePath: string; status: string }>
+  ): Promise<{ oldContent: string; newContent: string; filePath: string; status: string; tooLarge?: boolean }>
   revertFile(hash: string, filePath: string): Promise<void>
   dropCommit(hash: string): Promise<void>
   squashCommits(hashes: string[], message: string): Promise<void>

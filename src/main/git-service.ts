@@ -4,6 +4,33 @@ import { getSettings } from './store'
 let git: SimpleGit | null = null
 let repoPath: string | null = null
 
+const HASH_RE = /^[0-9a-f]{4,40}$/i
+const MAX_DIFF_FILE_SIZE = 2 * 1024 * 1024 // 2 MB
+
+function validateHash(hash: string): void {
+  if (!HASH_RE.test(hash)) {
+    throw new Error(`Invalid commit hash: ${hash}`)
+  }
+}
+
+function validateBranchName(name: string): void {
+  if (name.startsWith('-')) {
+    throw new Error(`Invalid branch name: ${name}`)
+  }
+  if (name.includes('..')) {
+    throw new Error(`Invalid branch name: ${name}`)
+  }
+}
+
+function safeResolvePath(base: string, relative: string): string {
+  const path = require('node:path') as typeof import('node:path')
+  const resolved = path.resolve(base, relative)
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+    throw new Error(`Path escapes repository: ${relative}`)
+  }
+  return resolved
+}
+
 interface CommitInfo {
   hash: string
   message: string
@@ -30,6 +57,7 @@ interface FileDiff {
   newContent: string
   filePath: string
   status: string
+  tooLarge?: boolean
 }
 
 async function openRepo(path: string): Promise<boolean> {
@@ -79,14 +107,35 @@ async function discardLocalChanges(): Promise<void> {
 }
 
 async function checkoutBranch(branch: string): Promise<void> {
+  validateBranchName(branch)
   const g = ensureGit()
   await g.checkout(branch)
 }
 
 async function stashAndCheckout(branch: string): Promise<void> {
+  validateBranchName(branch)
   const g = ensureGit()
   await g.stash(['push', '-m', `Auto-stash before switching to ${branch}`])
-  await g.checkout(branch)
+  try {
+    await g.checkout(branch)
+  } catch (err) {
+    await g.stash(['pop'])
+    throw err
+  }
+}
+
+async function discardAndCheckout(branch: string): Promise<void> {
+  validateBranchName(branch)
+  const g = ensureGit()
+  await g.stash(['push', '-m', `Safety stash before discard-and-checkout to ${branch}`])
+  try {
+    await g.checkout(branch)
+  } catch (err) {
+    await g.stash(['pop'])
+    throw err
+  }
+  // Checkout succeeded — drop the safety stash
+  await g.stash(['drop'])
 }
 
 async function getLog(
@@ -94,7 +143,9 @@ async function getLog(
   page: number,
   pageSize: number,
 ): Promise<{ commits: CommitInfo[]; total: number }> {
+  validateBranchName(branch)
   const g = ensureGit()
+  pageSize = Math.min(Math.max(pageSize, 1), 200)
 
   // Get total count
   const countResult = await g.raw(['rev-list', '--count', branch])
@@ -129,6 +180,7 @@ async function getLog(
 }
 
 async function getCommitFiles(hash: string): Promise<FileChange[]> {
+  validateHash(hash)
   const g = ensureGit()
 
   // Use diff-tree to get changed files with status
@@ -166,11 +218,31 @@ async function getCommitFiles(hash: string): Promise<FileChange[]> {
 }
 
 async function getFileDiff(hash: string, filePath: string): Promise<FileDiff> {
+  validateHash(hash)
+  if (repoPath) safeResolvePath(repoPath, filePath)
   const g = ensureGit()
 
   // Get the file status to know how to handle it
   const statusResult = await g.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', hash, '--', filePath])
   const status = statusResult.trim().split('\t')[0] || 'M'
+
+  // Check file sizes before loading content
+  try {
+    if (status !== 'A') {
+      const oldSize = Number.parseInt((await g.raw(['cat-file', '-s', `${hash}^:${filePath}`])).trim(), 10)
+      if (oldSize > MAX_DIFF_FILE_SIZE) {
+        return { oldContent: '', newContent: '', filePath, status, tooLarge: true }
+      }
+    }
+    if (status !== 'D') {
+      const newSize = Number.parseInt((await g.raw(['cat-file', '-s', `${hash}:${filePath}`])).trim(), 10)
+      if (newSize > MAX_DIFF_FILE_SIZE) {
+        return { oldContent: '', newContent: '', filePath, status, tooLarge: true }
+      }
+    }
+  } catch {
+    // If cat-file fails, proceed without size check
+  }
 
   let oldContent = ''
   let newContent = ''
@@ -197,6 +269,9 @@ async function getFileDiff(hash: string, filePath: string): Promise<FileDiff> {
 }
 
 async function revertFile(hash: string, filePath: string): Promise<void> {
+  validateHash(hash)
+  if (!repoPath) throw new Error('No repository opened')
+  const fullPath = safeResolvePath(repoPath, filePath)
   const g = ensureGit()
 
   const statusResult = await g.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', hash, '--', filePath])
@@ -204,12 +279,14 @@ async function revertFile(hash: string, filePath: string): Promise<void> {
 
   if (status === 'A') {
     // File was added in this commit — remove it
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-    const fullPath = path.join(repoPath!, filePath)
-    if (fs.existsSync(fullPath)) {
-      await g.raw(['rm', '--cached', filePath])
-      fs.unlinkSync(fullPath)
+    const fs = await import('node:fs/promises')
+    await g.raw(['rm', '--cached', filePath])
+    try {
+      await fs.unlink(fullPath)
+    } catch (unlinkErr) {
+      // Rollback: re-add the file to the index
+      await g.raw(['add', filePath])
+      throw unlinkErr
     }
   } else {
     // File was modified or deleted — restore parent version
@@ -219,8 +296,16 @@ async function revertFile(hash: string, filePath: string): Promise<void> {
 }
 
 async function dropCommit(hash: string): Promise<void> {
+  validateHash(hash)
   const g = ensureGit()
   const settings = getSettings()
+
+  // Verify the commit has a parent (not a root commit)
+  try {
+    await g.raw(['rev-parse', '--verify', `${hash}^`])
+  } catch {
+    throw new Error('Cannot drop the root commit — it has no parent')
+  }
 
   // Check if this is the HEAD commit
   const headHash = (await g.raw(['rev-parse', 'HEAD'])).trim()
@@ -230,12 +315,15 @@ async function dropCommit(hash: string): Promise<void> {
     if (isHead) {
       await g.raw(['reset', '--soft', 'HEAD~1'])
     } else {
-      // For non-HEAD commits in soft mode:
-      // We need to remove the commit but keep its changes
-      // Use rebase to remove the commit, then the changes will conflict or be lost
-      // Better approach: rebase --onto to skip the commit
       const parentHash = (await g.raw(['rev-parse', `${hash}^`])).trim()
-      await g.raw(['rebase', '--onto', parentHash, hash])
+      try {
+        await g.raw(['rebase', '--onto', parentHash, hash])
+      } catch {
+        await g.raw(['rebase', '--abort'])
+        throw new Error(
+          `Rebase failed while dropping commit ${hash.slice(0, 7)} — operation aborted, repository restored`,
+        )
+      }
     }
   } else {
     // Hard drop: remove commit and its changes
@@ -243,7 +331,14 @@ async function dropCommit(hash: string): Promise<void> {
       await g.raw(['reset', '--hard', 'HEAD~1'])
     } else {
       const parentHash = (await g.raw(['rev-parse', `${hash}^`])).trim()
-      await g.raw(['rebase', '--onto', parentHash, hash])
+      try {
+        await g.raw(['rebase', '--onto', parentHash, hash])
+      } catch {
+        await g.raw(['rebase', '--abort'])
+        throw new Error(
+          `Rebase failed while dropping commit ${hash.slice(0, 7)} — operation aborted, repository restored`,
+        )
+      }
     }
   }
 }
@@ -255,17 +350,53 @@ async function squashCommits(hashes: string[], message: string): Promise<void> {
     throw new Error('Need at least 2 commits to squash')
   }
 
-  // Sort hashes by commit order (newest first) to find the range
-  // Get the commit timestamps to sort
-  const commitDates: { hash: string; timestamp: number }[] = []
   for (const hash of hashes) {
-    const ts = await g.raw(['show', '-s', '--format=%ct', hash])
-    commitDates.push({ hash, timestamp: Number.parseInt(ts.trim(), 10) })
+    validateHash(hash)
   }
-  commitDates.sort((a, b) => a.timestamp - b.timestamp)
 
-  // Oldest commit's parent is our reset target
-  const oldestHash = commitDates[0].hash
+  // Get the full commit log from HEAD to verify contiguity
+  const hashSet = new Set(hashes)
+
+  // Walk back from HEAD enough commits to cover all selected
+  const logResult = await g.raw(['log', '--format=%H', `-n`, `${hashes.length + 10}`])
+  const headLog = logResult.trim().split('\n').filter(Boolean)
+
+  // Find the indices of selected commits in the log
+  const indices: number[] = []
+  for (const h of headLog) {
+    if (hashSet.has(h)) {
+      indices.push(headLog.indexOf(h))
+    }
+  }
+
+  if (indices.length !== hashes.length) {
+    throw new Error('Some selected commits are not in the recent history — cannot squash')
+  }
+
+  indices.sort((a, b) => a - b)
+
+  // Must include HEAD (index 0)
+  if (indices[0] !== 0) {
+    throw new Error('Squash must include the most recent commit (HEAD)')
+  }
+
+  // Must be contiguous
+  for (let i = 1; i < indices.length; i++) {
+    if (indices[i] !== indices[i - 1] + 1) {
+      throw new Error('Selected commits must be contiguous — there are gaps in the selection')
+    }
+  }
+
+  // Oldest selected commit is at the largest index
+  const oldestHash = headLog[indices[indices.length - 1]]
+
+  // Verify oldest has a parent (not root)
+  try {
+    await g.raw(['rev-parse', '--verify', `${oldestHash}^`])
+  } catch {
+    throw new Error('Cannot squash — the oldest selected commit is the root commit (no parent)')
+  }
+
   const parentHash = (await g.raw(['rev-parse', `${oldestHash}^`])).trim()
 
   // Soft reset to the parent of the oldest commit, then recommit
@@ -274,15 +405,15 @@ async function squashCommits(hashes: string[], message: string): Promise<void> {
 }
 
 async function getCommitMessage(hash: string): Promise<string> {
+  validateHash(hash)
   const g = ensureGit()
   return (await g.raw(['log', '-1', '--format=%B', hash])).trim()
 }
 
 async function writeFileContent(filePath: string, content: string): Promise<void> {
   if (!repoPath) throw new Error('No repository opened')
-  const path = await import('node:path')
+  const fullPath = safeResolvePath(repoPath, filePath)
   const fs = await import('node:fs/promises')
-  const fullPath = path.join(repoPath, filePath)
   await fs.writeFile(fullPath, content, 'utf-8')
 }
 
@@ -293,6 +424,7 @@ export {
   discardLocalChanges,
   checkoutBranch,
   stashAndCheckout,
+  discardAndCheckout,
   getLog,
   getCommitFiles,
   getFileDiff,

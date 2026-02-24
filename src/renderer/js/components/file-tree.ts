@@ -12,6 +12,7 @@ let viewMode: 'tree' | 'list' = 'tree'
 let currentCommit: CommitInfo | null = null
 const collapsedDirs = new Set<string>()
 let flatFileOrder: string[] = []
+let selectedElement: HTMLElement | null = null
 
 let onFileSelect: ((path: string) => void) | null = null
 let onFileRevert: ((path: string) => void) | null = null
@@ -46,6 +47,7 @@ function setFiles(newFiles: FileChange[], commit: CommitInfo | null) {
   files = newFiles
   currentCommit = commit
   selectedFile = null
+  selectedElement = null
   collapsedDirs.clear()
   renderFiles()
   renderDetails()
@@ -164,15 +166,26 @@ function renderListView() {
     item.appendChild(createStatusBadge(f))
 
     item.title = f.path
+    item.dataset.filePath = f.path
     item.addEventListener('click', () => {
       selectedFile = f.path
-      renderFiles()
+      updateFileSelection(item)
       onFileSelect?.(f.path)
     })
     item.addEventListener('contextmenu', (e) => showFileContextMenu(e, f))
 
     treeEl.appendChild(item)
   }
+}
+
+function updateFileSelection(newEl: HTMLElement | null) {
+  if (selectedElement) {
+    selectedElement.classList.remove('bg-accent/15')
+  }
+  if (newEl) {
+    newEl.classList.add('bg-accent/15')
+  }
+  selectedElement = newEl
 }
 
 // --- Tree View ---
@@ -280,9 +293,10 @@ function renderTreeNode(node: TreeNode, container: HTMLElement, depth: number, p
     item.appendChild(createStatusBadge(f))
 
     item.title = f.path
+    item.dataset.filePath = f.path
     item.addEventListener('click', () => {
       selectedFile = f.path
-      renderFiles()
+      updateFileSelection(item)
       onFileSelect?.(f.path)
     })
     item.addEventListener('contextmenu', (e) => showFileContextMenu(e, f))
@@ -326,6 +340,7 @@ function clear() {
   files = []
   currentCommit = null
   selectedFile = null
+  selectedElement = null
   flatFileOrder = []
   treeEl.innerHTML =
     '<div class="flex items-center justify-center h-full text-text-muted text-sm">Select a commit</div>'
@@ -339,7 +354,12 @@ function getFiles(): FileChange[] {
 function selectByPath(path: string) {
   const changed = selectedFile !== path
   selectedFile = path
-  renderFiles()
+  const newEl = treeEl.querySelector(`[data-file-path="${CSS.escape(path)}"]`) as HTMLElement | null
+  if (newEl) {
+    updateFileSelection(newEl)
+  } else {
+    renderFiles()
+  }
   if (changed) onFileSelect?.(path)
   scrollToSelected()
 }

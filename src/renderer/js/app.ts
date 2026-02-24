@@ -33,8 +33,7 @@ branchSelector.setOnBranchChange(async (name) => {
         if (action === 'cancel') return
         try {
           if (action === 'discard') {
-            await window.git.discardLocalChanges()
-            await window.git.checkoutBranch(name)
+            await window.git.discardAndCheckout(name)
           } else {
             await window.git.stashAndCheckout(name)
           }
@@ -152,6 +151,11 @@ async function showCurrentDiff() {
   if (!currentCommit || !currentFilePath) return
   try {
     const diff = await window.git.getFileDiff(currentCommit.hash, currentFilePath)
+
+    if (diff.tooLarge) {
+      diffViewer.showTooLarge(diff.filePath)
+      return
+    }
 
     const lineCount = Math.max(countLines(diff.oldContent), countLines(diff.newContent))
     const fileKey = `${currentCommit.hash}:${currentFilePath}`
@@ -330,8 +334,7 @@ commandPalette.setOnSelect(async (item) => {
             if (action === 'cancel') return
             try {
               if (action === 'discard') {
-                await window.git.discardLocalChanges()
-                await window.git.checkoutBranch(name)
+                await window.git.discardAndCheckout(name)
               } else {
                 await window.git.stashAndCheckout(name)
               }

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('git', {
   discardLocalChanges: () => ipcRenderer.invoke('git:discard-local-changes'),
   checkoutBranch: (branch: string) => ipcRenderer.invoke('git:checkout-branch', branch),
   stashAndCheckout: (branch: string) => ipcRenderer.invoke('git:stash-and-checkout', branch),
+  discardAndCheckout: (branch: string) => ipcRenderer.invoke('git:discard-and-checkout', branch),
   getLog: (branch: string, page: number, pageSize: number) => ipcRenderer.invoke('git:get-log', branch, page, pageSize),
   getCommitFiles: (hash: string) => ipcRenderer.invoke('git:get-commit-files', hash),
   getFileDiff: (hash: string, filePath: string) => ipcRenderer.invoke('git:get-file-diff', hash, filePath),

@@ -32,6 +32,7 @@ type DisplayLine = DiffLine | SeparatorLine
 
 let currentDiffData: { diff: FileDiff; commitHash: string } | null = null
 let expandedSeparators = new Set<string>()
+let reverting = false
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -497,6 +498,16 @@ async function renderDiff() {
 }
 
 async function revertHunk(hunk: Hunk, oldContent: string, newContent: string, filePath: string): Promise<void> {
+  if (reverting) return
+  reverting = true
+  try {
+    await doRevertHunk(hunk, oldContent, newContent, filePath)
+  } finally {
+    reverting = false
+  }
+}
+
+async function doRevertHunk(hunk: Hunk, oldContent: string, newContent: string, filePath: string): Promise<void> {
   const newLines = newContent.split('\n')
 
   const oldLines: string[] = []
@@ -521,6 +532,14 @@ async function revertHunk(hunk: Hunk, oldContent: string, newContent: string, fi
   const result = newLines.join('\n')
   await window.git.writeFileContent(filePath, result)
   onRefreshDiff?.()
+}
+
+function showTooLarge(filePath: string) {
+  currentDiffData = null
+  headerEl.classList.remove('hidden')
+  headerEl.innerHTML = `<span class="font-mono text-xs text-text-primary">${escapeHtml(filePath)}</span>`
+  bodyEl.innerHTML =
+    '<div class="flex-1 flex items-center justify-center h-full text-text-muted text-sm">File too large to diff (over 2 MB)</div>'
 }
 
 function clear() {
@@ -647,4 +666,4 @@ function escapeHtml(text: string): string {
   return div.innerHTML
 }
 
-export { showDiff, clear, setOnRefreshDiff }
+export { showDiff, showTooLarge, clear, setOnRefreshDiff }

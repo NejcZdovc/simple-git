@@ -172,12 +172,27 @@ function getCurrentIndex(): number {
   return -1
 }
 
+function updateSelection(oldIndex: number, newIndex: number) {
+  const rows = listEl.children
+  if (oldIndex >= 0 && oldIndex < rows.length) {
+    const oldRow = rows[oldIndex] as HTMLElement
+    oldRow.classList.remove('bg-accent/15', 'hover:bg-accent/20')
+    oldRow.classList.add('hover:bg-white/4')
+  }
+  if (newIndex >= 0 && newIndex < rows.length) {
+    const newRow = rows[newIndex] as HTMLElement
+    newRow.classList.add('bg-accent/15', 'hover:bg-accent/20')
+    newRow.classList.remove('hover:bg-white/4')
+  }
+}
+
 function selectByIndex(index: number) {
   if (index < 0 || index >= commits.length) return
+  const oldIndex = getCurrentIndex()
   selectedHashes.clear()
   selectedHashes.add(commits[index].hash)
   lastClickedIndex = index
-  render()
+  updateSelection(oldIndex, index)
   scrollToIndex(index)
   onCommitSelect?.(commits[index].hash)
 }

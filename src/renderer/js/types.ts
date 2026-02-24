@@ -24,6 +24,7 @@ export interface FileDiff {
   newContent: string
   filePath: string
   status: string
+  tooLarge?: boolean
 }
 
 export interface DiffLine {

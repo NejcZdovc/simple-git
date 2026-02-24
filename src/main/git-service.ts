@@ -183,10 +183,12 @@ async function getCommitFiles(hash: string): Promise<FileChange[]> {
   validateHash(hash)
   const g = ensureGit()
 
-  // Use diff-tree to get changed files with status
-  const result = await g.raw(['diff-tree', '--no-commit-id', '-r', '--numstat', '--diff-filter=AMDRT', hash])
+  // --root makes diff-tree work for root commits (no parent)
+  const diffArgs = ['diff-tree', '--root', '--no-commit-id', '-r', '--numstat', '--diff-filter=AMDRT', hash]
+  const result = await g.raw(diffArgs)
 
-  const statusResult = await g.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', hash])
+  const statusArgs = ['diff-tree', '--root', '--no-commit-id', '-r', '--name-status', hash]
+  const statusResult = await g.raw(statusArgs)
 
   const statusMap = new Map<string, string>()
   for (const line of statusResult.trim().split('\n')) {
@@ -222,8 +224,17 @@ async function getFileDiff(hash: string, filePath: string): Promise<FileDiff> {
   if (repoPath) safeResolvePath(repoPath, filePath)
   const g = ensureGit()
 
-  // Get the file status to know how to handle it
-  const statusResult = await g.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', hash, '--', filePath])
+  // Get the file status to know how to handle it (--root handles root commits)
+  const statusResult = await g.raw([
+    'diff-tree',
+    '--root',
+    '--no-commit-id',
+    '-r',
+    '--name-status',
+    hash,
+    '--',
+    filePath,
+  ])
   const status = statusResult.trim().split('\t')[0] || 'M'
 
   // Check file sizes before loading content

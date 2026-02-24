@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist/main",
+    "types": ["node"]
+  },
+  "include": [
+    "src/main/**/*.ts",
+    "src/renderer/preload.ts"
+  ],
+  "composite": true
+}

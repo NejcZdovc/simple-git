@@ -130,5 +130,46 @@ function updateSettings(partial: Partial<AppSettings>): AppSettings {
   return updated
 }
 
-export { getProjects, addProject, removeProject, setLastProject, getSettings, updateSettings }
-export type { ProjectStore, ProjectEntry, AppSettings }
+// Window state
+interface WindowState {
+  x: number
+  y: number
+  width: number
+  height: number
+  isMaximized: boolean
+}
+
+function getWindowState(): WindowState | null {
+  const raw = readJson<Record<string, unknown>>('window-state.json', {})
+  if (
+    typeof raw.x === 'number' &&
+    typeof raw.y === 'number' &&
+    typeof raw.width === 'number' &&
+    typeof raw.height === 'number'
+  ) {
+    return {
+      x: raw.x,
+      y: raw.y,
+      width: raw.width,
+      height: raw.height,
+      isMaximized: raw.isMaximized === true,
+    }
+  }
+  return null
+}
+
+function saveWindowState(state: WindowState): void {
+  writeJson('window-state.json', state)
+}
+
+export {
+  getProjects,
+  addProject,
+  removeProject,
+  setLastProject,
+  getSettings,
+  updateSettings,
+  getWindowState,
+  saveWindowState,
+}
+export type { ProjectStore, ProjectEntry, AppSettings, WindowState }

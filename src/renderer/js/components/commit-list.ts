@@ -155,12 +155,20 @@ function handleContextMenu(index: number, e: MouseEvent) {
 
   if (selectedHashes.size === 1) {
     items.push({
+      label: 'Copy Commit ID',
+      action: () => navigator.clipboard.writeText(hash),
+    })
+    items.push({
       label: 'Drop Commit',
       destructive: true,
       action: () => onDropCommit?.(hash),
     })
   } else if (selectedHashes.size > 1) {
     const hashes = getSelectedHashesOrdered()
+    items.push({
+      label: 'Copy Commit IDs',
+      action: () => navigator.clipboard.writeText(hashes.join('\n')),
+    })
     items.push({
       label: `Squash ${selectedHashes.size} Commits`,
       action: () => onSquashCommits?.(hashes),

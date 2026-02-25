@@ -31,14 +31,17 @@ contextBridge.exposeInMainWorld('git', {
   getCommitMessage: (hash: string) => ipcRenderer.invoke('git:get-commit-message', hash),
   writeFileContent: (filePath: string, content: string) =>
     ipcRenderer.invoke('git:write-file-content', filePath, content),
-  commitAll: (message: string) => ipcRenderer.invoke('git:commit-all', message),
-  commitFiles: (files: string[], message: string) => ipcRenderer.invoke('git:commit-files', files, message),
+  commitAll: (message: string, amend?: boolean) => ipcRenderer.invoke('git:commit-all', message, !!amend),
+  commitFiles: (files: string[], message: string, amend?: boolean) =>
+    ipcRenderer.invoke('git:commit-files', files, message, !!amend),
 
   // Events
   onOpenSettings: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('open-settings')
     ipcRenderer.on('open-settings', () => callback())
   },
   onGitChanged: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('git:changed')
     ipcRenderer.on('git:changed', () => callback())
   },
 })

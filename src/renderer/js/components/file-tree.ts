@@ -324,7 +324,7 @@ function renderTreeNode(node: TreeNode, container: HTMLElement, depth: number, p
     const header = document.createElement('div')
     header.className =
       'flex items-center gap-1 cursor-pointer text-sm text-text-secondary transition-[background] duration-100 hover:bg-white/4 py-[3px] pr-3'
-    header.style.paddingLeft = `${depth * 16 + 8}px`
+    header.style.paddingLeft = `${depth * 8 + 8}px`
 
     const arrow = document.createElement('span')
     arrow.className = `text-[10px] w-3.5 text-center transition-transform duration-150 shrink-0 ${isCollapsed ? '-rotate-90' : ''}`
@@ -364,7 +364,7 @@ function renderTreeNode(node: TreeNode, container: HTMLElement, depth: number, p
     const item = document.createElement('div')
     item.className =
       'flex items-center gap-1.5 py-[3px] pr-3 cursor-pointer text-sm text-text-primary transition-[background] duration-100 hover:bg-white/4'
-    item.style.paddingLeft = `${depth * 16 + 26}px`
+    item.style.paddingLeft = `${depth * 8 + 20}px`
     if (f.path === selectedFile) item.classList.add('bg-accent/15')
 
     item.appendChild(createFileTypeBadge(fileName))

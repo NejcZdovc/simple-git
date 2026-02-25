@@ -3,11 +3,13 @@ const closeBtn = document.getElementById('settings-close')!
 const doneBtn = document.getElementById('settings-done')!
 const dropModeSelect = document.getElementById('settings-drop-mode') as HTMLSelectElement
 const diffViewModeSelect = document.getElementById('settings-diff-view-mode') as HTMLSelectElement
+const commitModeSelect = document.getElementById('settings-commit-mode') as HTMLSelectElement
 
 async function show() {
   const settings = await window.git.getSettings()
   dropModeSelect.value = settings.dropMode
   diffViewModeSelect.value = settings.diffViewMode
+  commitModeSelect.value = settings.commitMode
   overlayEl.classList.remove('hidden')
 }
 
@@ -36,6 +38,17 @@ diffViewModeSelect.addEventListener('change', async () => {
   onDiffViewModeChange?.()
 })
 
+let onCommitModeChange: (() => void) | null = null
+
+function setOnCommitModeChange(cb: () => void) {
+  onCommitModeChange = cb
+}
+
+commitModeSelect.addEventListener('change', async () => {
+  await window.git.updateSettings({ commitMode: commitModeSelect.value })
+  onCommitModeChange?.()
+})
+
 doneBtn.addEventListener('click', hide)
 
 document.addEventListener('keydown', (e) => {
@@ -44,4 +57,4 @@ document.addEventListener('keydown', (e) => {
   }
 })
 
-export { show, hide, setOnDiffViewModeChange }
+export { show, hide, setOnDiffViewModeChange, setOnCommitModeChange }

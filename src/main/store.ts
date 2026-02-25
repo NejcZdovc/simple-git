@@ -15,11 +15,13 @@ interface ProjectStore {
 interface AppSettings {
   dropMode: 'hard' | 'soft'
   diffViewMode: 'full' | 'minimal'
+  commitMode: 'commit' | 'amend'
 }
 
 const defaultSettings: AppSettings = {
   dropMode: 'hard',
   diffViewMode: 'full',
+  commitMode: 'commit',
 }
 
 function getStorePath(filename: string): string {
@@ -89,12 +91,24 @@ function setLastProject(projectPath: string): void {
 }
 
 // Settings
-function getSettings(): AppSettings {
-  return { ...defaultSettings, ...readJson<Partial<AppSettings>>('settings.json', {}) }
-}
-
 const VALID_DROP_MODES: AppSettings['dropMode'][] = ['hard', 'soft']
 const VALID_DIFF_VIEW_MODES: AppSettings['diffViewMode'][] = ['full', 'minimal']
+const VALID_COMMIT_MODES: AppSettings['commitMode'][] = ['commit', 'amend']
+
+function getSettings(): AppSettings {
+  const raw = readJson<Record<string, unknown>>('settings.json', {})
+  return {
+    dropMode: VALID_DROP_MODES.includes(raw.dropMode as AppSettings['dropMode'])
+      ? (raw.dropMode as AppSettings['dropMode'])
+      : defaultSettings.dropMode,
+    diffViewMode: VALID_DIFF_VIEW_MODES.includes(raw.diffViewMode as AppSettings['diffViewMode'])
+      ? (raw.diffViewMode as AppSettings['diffViewMode'])
+      : defaultSettings.diffViewMode,
+    commitMode: VALID_COMMIT_MODES.includes(raw.commitMode as AppSettings['commitMode'])
+      ? (raw.commitMode as AppSettings['commitMode'])
+      : defaultSettings.commitMode,
+  }
+}
 
 function updateSettings(partial: Partial<AppSettings>): AppSettings {
   const settings = getSettings()
@@ -107,6 +121,9 @@ function updateSettings(partial: Partial<AppSettings>): AppSettings {
     VALID_DIFF_VIEW_MODES.includes(partial.diffViewMode as AppSettings['diffViewMode'])
   ) {
     sanitized.diffViewMode = partial.diffViewMode
+  }
+  if ('commitMode' in partial && VALID_COMMIT_MODES.includes(partial.commitMode as AppSettings['commitMode'])) {
+    sanitized.commitMode = partial.commitMode
   }
   const updated = { ...settings, ...sanitized }
   writeJson('settings.json', updated)

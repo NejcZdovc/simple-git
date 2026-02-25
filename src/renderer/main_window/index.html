@@ -314,6 +314,19 @@
               <option value="minimal">Minimal (changes only)</option>
             </select>
           </div>
+          <div class="flex items-center justify-between">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[13px] font-medium text-text-primary">Commit mode</span>
+              <span class="text-[11px] text-text-secondary">New commit or amend the last commit</span>
+            </div>
+            <select
+              class="settings-select pl-3 pr-8 py-1.5 border border-border rounded-sm bg-bg-primary text-text-primary text-[13px] outline-none focus:border-accent cursor-pointer appearance-none"
+              id="settings-commit-mode"
+            >
+              <option value="commit">New Commit</option>
+              <option value="amend">Amend Last Commit</option>
+            </select>
+          </div>
         </div>
         <div class="flex justify-end px-5 py-3 border-t border-border shrink-0">
           <button

@@ -78,9 +78,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:write-file-content', (_e, filePath: string, content: string) =>
     writeFileContent(filePath, content),
   )
-  ipcMain.handle('git:commit-all', (_e, message: string) => withSuppressedWatcher(() => commitAll(message)))
-  ipcMain.handle('git:commit-files', (_e, files: string[], message: string) =>
-    withSuppressedWatcher(() => commitFiles(files, message)),
+  ipcMain.handle('git:commit-all', (_e, message: string, amend: boolean) =>
+    withSuppressedWatcher(() => commitAll(message, amend)),
+  )
+  ipcMain.handle('git:commit-files', (_e, files: string[], message: string, amend: boolean) =>
+    withSuppressedWatcher(() => commitFiles(files, message, amend)),
   )
 }
 

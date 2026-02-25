@@ -497,37 +497,44 @@ async function squashCommits(hashes: string[], message: string): Promise<void> {
   await g.raw(['commit', '-m', message])
 }
 
-async function getCommitMessage(hash: string): Promise<string> {
-  validateHash(hash)
+async function getCommitMessage(ref: string): Promise<string> {
+  if (ref !== 'HEAD') validateHash(ref)
   const g = ensureGit()
-  return (await g.raw(['log', '-1', '--format=%B', hash])).trim()
+  return (await g.raw(['log', '-1', '--format=%B', ref])).trim()
 }
 
 async function getLocalChangesWithStats(): Promise<FileChange[]> {
   const g = ensureGit()
   const status = await g.status()
 
+  // Batch numstat: single git call for all tracked files
+  const numstatMap = new Map<string, { insertions: number; deletions: number }>()
+  try {
+    const numstat = await g.raw(['diff', '--numstat'])
+    for (const line of numstat.trim().split('\n')) {
+      if (!line) continue
+      const parts = line.split('\t')
+      if (parts.length >= 3) {
+        numstatMap.set(parts[2], {
+          insertions: parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10),
+          deletions: parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10),
+        })
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   const files: FileChange[] = []
   for (const f of status.files) {
     const fileStatus = f.working_dir === '?' ? 'A' : f.working_dir || f.index || 'M'
-    let insertions = 0
-    let deletions = 0
-
-    // Try to get numstat for tracked files
-    if (fileStatus !== 'A' && f.working_dir !== '?') {
-      try {
-        const numstat = await g.raw(['diff', '--numstat', '--', f.path])
-        const parts = numstat.trim().split('\t')
-        if (parts.length >= 2) {
-          insertions = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10)
-          deletions = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10)
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    files.push({ path: f.path, status: fileStatus, insertions, deletions })
+    const stats = numstatMap.get(f.path)
+    files.push({
+      path: f.path,
+      status: fileStatus,
+      insertions: stats?.insertions ?? 0,
+      deletions: stats?.deletions ?? 0,
+    })
   }
 
   return files
@@ -595,14 +602,16 @@ async function writeFileContent(filePath: string, content: string): Promise<void
   await fs.writeFile(fullPath, content, 'utf-8')
 }
 
-async function commitAll(message: string): Promise<void> {
+async function commitAll(message: string, amend?: boolean): Promise<void> {
   const g = ensureGit()
   if (!message.trim()) throw new Error('Commit message cannot be empty')
   await g.raw(['add', '-A'])
-  await g.raw(['commit', '-m', message])
+  const commitArgs = ['commit', '-m', message]
+  if (amend) commitArgs.push('--amend')
+  await g.raw(commitArgs)
 }
 
-async function commitFiles(filePaths: string[], message: string): Promise<void> {
+async function commitFiles(filePaths: string[], message: string, amend?: boolean): Promise<void> {
   if (!repoPath) throw new Error('No repository opened')
   const g = ensureGit()
   if (!message.trim()) throw new Error('Commit message cannot be empty')
@@ -611,7 +620,10 @@ async function commitFiles(filePaths: string[], message: string): Promise<void> 
     safeResolvePath(repoPath, fp)
   }
   await g.raw(['add', '--', ...filePaths])
-  await g.raw(['commit', '-m', message, '--', ...filePaths])
+  const commitArgs = ['commit', '-m', message]
+  if (amend) commitArgs.push('--amend')
+  commitArgs.push('--', ...filePaths)
+  await g.raw(commitArgs)
 }
 
 export {

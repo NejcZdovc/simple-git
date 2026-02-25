@@ -33,6 +33,11 @@ type DisplayLine = DiffLine | SeparatorLine
 let currentDiffData: { diff: FileDiff; commitHash: string } | null = null
 let expandedSeparators = new Set<string>()
 let reverting = false
+let scrollLeft: HTMLElement | null = null
+let scrollRight: HTMLElement | null = null
+let scrollGutterInner: HTMLElement | null = null
+let leftScrollHandler: (() => void) | null = null
+let rightScrollHandler: (() => void) | null = null
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -301,11 +306,18 @@ async function renderDiff() {
     settings.diffViewMode === 'minimal' ? filterMinimalLines(lines, 10, expandedSeparators) : lines
 
   const hunks = computeHunks(lines)
+
+  // Build O(1) lookup from line identity to original index
+  const lineToIdx = new Map<DiffLine, number>()
+  for (let i = 0; i < lines.length; i++) {
+    lineToIdx.set(lines[i], i)
+  }
+
   const lineToHunk = new Map<number, Hunk>()
   for (const hunk of hunks) {
     for (const hl of hunk.lines) {
-      const idx = lines.indexOf(hl)
-      if (idx >= 0) lineToHunk.set(idx, hunk)
+      const idx = lineToIdx.get(hl)
+      if (idx !== undefined) lineToHunk.set(idx, hunk)
     }
   }
 
@@ -315,8 +327,8 @@ async function renderDiff() {
   for (let di = 0; di < displayLines.length; di++) {
     const dl = displayLines[di]
     if (dl.type === 'separator') continue
-    const origIdx = lines.indexOf(dl as DiffLine)
-    if (origIdx >= 0) {
+    const origIdx = lineToIdx.get(dl as DiffLine)
+    if (origIdx !== undefined) {
       const hunk = lineToHunk.get(origIdx)
       if (hunk) {
         displayLineToHunk.set(di, hunk)
@@ -467,24 +479,33 @@ async function renderDiff() {
   bodyEl.appendChild(gutter)
   bodyEl.appendChild(rightSide)
 
+  // Clean up previous scroll listeners
+  if (scrollLeft && leftScrollHandler) scrollLeft.removeEventListener('scroll', leftScrollHandler)
+  if (scrollRight && rightScrollHandler) scrollRight.removeEventListener('scroll', rightScrollHandler)
+
   // Synchronized scrolling
+  scrollLeft = leftSide
+  scrollRight = rightSide
+  scrollGutterInner = gutterInner
   let syncing = false
-  leftSide.addEventListener('scroll', () => {
+  leftScrollHandler = () => {
     if (syncing) return
     syncing = true
     rightSide.scrollTop = leftSide.scrollTop
     rightSide.scrollLeft = leftSide.scrollLeft
     gutterInner.style.transform = `translateY(-${leftSide.scrollTop}px)`
     syncing = false
-  })
-  rightSide.addEventListener('scroll', () => {
+  }
+  rightScrollHandler = () => {
     if (syncing) return
     syncing = true
     leftSide.scrollTop = rightSide.scrollTop
     leftSide.scrollLeft = rightSide.scrollLeft
     gutterInner.style.transform = `translateY(-${rightSide.scrollTop}px)`
     syncing = false
-  })
+  }
+  leftSide.addEventListener('scroll', leftScrollHandler)
+  rightSide.addEventListener('scroll', rightScrollHandler)
 
   // Scroll to first change
   if (firstChangeDisplayIdx > 0) {

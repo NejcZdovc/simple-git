@@ -20,6 +20,8 @@ let activePanel: 'commits' | 'files' = 'commits'
 let confirmedLargeFile: string | null = null
 let viewMode: 'commits' | 'local-changes' = 'commits'
 let commitSelectedBtn: HTMLButtonElement | null = null
+let diffVersion = 0
+let localChangesVersion = 0
 
 // Local changes mode DOM elements
 const localChangesBtn = document.getElementById('local-changes-btn')!
@@ -81,11 +83,17 @@ async function loadLocalChanges() {
   fileTree.clear()
   diffViewer.clear()
 
+  const version = ++localChangesVersion
+
   localChangesListEl.innerHTML =
     '<div class="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>'
 
   try {
-    const files = await window.git.getLocalChangesWithStats()
+    const [files, settings] = await Promise.all([window.git.getLocalChangesWithStats(), window.git.getSettings()])
+    const isAmend = settings.commitMode === 'amend'
+
+    // Discard stale result if a newer load was requested
+    if (version !== localChangesVersion) return
 
     if (files.length === 0) {
       localChangesListEl.innerHTML =
@@ -106,8 +114,19 @@ async function loadLocalChanges() {
     const textarea = document.createElement('textarea')
     textarea.className =
       'w-full min-h-[120px] max-h-[300px] px-3 py-2.5 border border-border rounded-sm bg-bg-primary text-text-primary font-mono text-[13px] leading-relaxed resize-y outline-none focus:border-accent'
-    textarea.placeholder = 'Commit message...'
+    textarea.placeholder = isAmend ? 'Amend commit message...' : 'Commit message...'
     container.appendChild(textarea)
+
+    if (isAmend) {
+      try {
+        const lastMessage = await window.git.getCommitMessage('HEAD')
+        if (version === localChangesVersion) {
+          textarea.value = lastMessage
+        }
+      } catch {
+        // No commits yet — leave empty
+      }
+    }
 
     const btnRow = document.createElement('div')
     btnRow.className = 'flex gap-2'
@@ -116,13 +135,15 @@ async function loadLocalChanges() {
     commitAllBtn.type = 'button'
     commitAllBtn.className =
       'flex-1 py-[7px] border-none rounded-sm text-[13px] font-medium cursor-pointer transition-all duration-150 font-[inherit] bg-accent text-white hover:bg-accent-hover'
-    commitAllBtn.textContent = 'Commit All'
+    commitAllBtn.textContent = isAmend ? 'Amend All' : 'Commit All'
 
     const commitSelBtn = document.createElement('button')
     commitSelBtn.type = 'button'
     commitSelBtn.className =
       'flex-1 py-[7px] border-none rounded-sm text-[13px] font-medium cursor-pointer transition-all duration-150 font-[inherit] bg-bg-card text-text-primary hover:bg-bg-card-hover disabled:opacity-50 disabled:cursor-default'
-    commitSelBtn.textContent = 'Commit Selected'
+    const selLabel = isAmend ? 'Amend Selected' : 'Commit Selected'
+    commitSelBtn.textContent = selLabel
+    commitSelBtn.dataset.baseLabel = selLabel
     commitSelBtn.disabled = true
     commitSelectedBtn = commitSelBtn
 
@@ -138,13 +159,13 @@ async function loadLocalChanges() {
         return
       }
       try {
-        await window.git.commitAll(message)
+        await window.git.commitAll(message, isAmend)
         textarea.value = ''
         commitSelectedBtn = null
         await loadLocalChanges()
         await refreshCommitList()
       } catch (err) {
-        alert(`Commit failed: ${err}`)
+        alert(`${isAmend ? 'Amend' : 'Commit'} failed: ${err}`)
       }
     })
 
@@ -157,13 +178,13 @@ async function loadLocalChanges() {
       const selected = fileTree.getSelectedFiles()
       if (selected.length === 0) return
       try {
-        await window.git.commitFiles(selected, message)
+        await window.git.commitFiles(selected, message, isAmend)
         textarea.value = ''
         commitSelectedBtn = null
         await loadLocalChanges()
         await refreshCommitList()
       } catch (err) {
-        alert(`Commit failed: ${err}`)
+        alert(`${isAmend ? 'Amend' : 'Commit'} failed: ${err}`)
       }
     })
   } catch (err) {
@@ -295,12 +316,13 @@ fileTree.setCallbacks({
   },
   onSelectionChange: (paths) => {
     if (commitSelectedBtn) {
+      const label = commitSelectedBtn.dataset.baseLabel || 'Commit Selected'
       if (paths.length === 0) {
         commitSelectedBtn.disabled = true
-        commitSelectedBtn.textContent = 'Commit Selected'
+        commitSelectedBtn.textContent = label
       } else {
         commitSelectedBtn.disabled = false
-        commitSelectedBtn.textContent = `Commit Selected (${paths.length})`
+        commitSelectedBtn.textContent = `${label} (${paths.length})`
       }
     }
     if (paths.length > 1) {
@@ -328,11 +350,15 @@ async function showCurrentDiff() {
   if (!currentFilePath) return
   if (viewMode !== 'local-changes' && !currentCommit) return
 
+  const version = ++diffVersion
   try {
     const diff =
       viewMode === 'local-changes'
         ? await window.git.getLocalFileDiff(currentFilePath)
         : await window.git.getFileDiff(currentCommit!.hash, currentFilePath)
+
+    // Discard stale result if a newer diff was requested
+    if (version !== diffVersion) return
 
     if (diff.tooLarge) {
       diffViewer.showTooLarge(diff.filePath)
@@ -371,6 +397,12 @@ window.git.onGitChanged(async () => {
 
 settingsDialog.setOnDiffViewModeChange(() => {
   showCurrentDiff()
+})
+
+settingsDialog.setOnCommitModeChange(() => {
+  if (viewMode === 'local-changes') {
+    loadLocalChanges()
+  }
 })
 
 // Resizable file tree panel
@@ -504,6 +536,23 @@ async function openCommandPalette() {
         data: 'diff-full',
       })
     }
+    if (settings.commitMode === 'commit') {
+      paletteItems.push({
+        id: 'action:commit-mode-amend',
+        label: 'Switch to Amend Mode',
+        detail: 'Amend the last commit instead of creating a new one',
+        category: 'action',
+        data: 'commit-mode-amend',
+      })
+    } else {
+      paletteItems.push({
+        id: 'action:commit-mode-commit',
+        label: 'Switch to Commit Mode',
+        detail: 'Create a new commit',
+        category: 'action',
+        data: 'commit-mode-commit',
+      })
+    }
   } catch {
     // ignore — no project open
   }
@@ -587,6 +636,12 @@ commandPalette.setOnSelect(async (item) => {
         const newMode = item.data === 'diff-minimal' ? 'minimal' : 'full'
         await window.git.updateSettings({ diffViewMode: newMode })
         await showCurrentDiff()
+      } else if (item.data === 'commit-mode-amend' || item.data === 'commit-mode-commit') {
+        const newMode = item.data === 'commit-mode-amend' ? 'amend' : 'commit'
+        await window.git.updateSettings({ commitMode: newMode })
+        if (viewMode === 'local-changes') {
+          await loadLocalChanges()
+        }
       }
       break
     case 'project':

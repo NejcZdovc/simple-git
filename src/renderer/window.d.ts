@@ -9,10 +9,16 @@ interface GitApi {
   addProject(path: string, name: string): Promise<{ projects: ProjectEntry[]; lastProject?: string }>
   removeProject(path: string): Promise<{ projects: ProjectEntry[]; lastProject?: string }>
   setLastProject(path: string): Promise<void>
-  getSettings(): Promise<{ dropMode: 'hard' | 'soft'; diffViewMode: 'full' | 'minimal' }>
-  updateSettings(
-    partial: Record<string, unknown>,
-  ): Promise<{ dropMode: 'hard' | 'soft'; diffViewMode: 'full' | 'minimal' }>
+  getSettings(): Promise<{
+    dropMode: 'hard' | 'soft'
+    diffViewMode: 'full' | 'minimal'
+    commitMode: 'commit' | 'amend'
+  }>
+  updateSettings(partial: Record<string, unknown>): Promise<{
+    dropMode: 'hard' | 'soft'
+    diffViewMode: 'full' | 'minimal'
+    commitMode: 'commit' | 'amend'
+  }>
 
   // Dialog
   openFolder(): Promise<string | null>
@@ -55,8 +61,8 @@ interface GitApi {
   squashCommits(hashes: string[], message: string): Promise<void>
   getCommitMessage(hash: string): Promise<string>
   writeFileContent(filePath: string, content: string): Promise<void>
-  commitAll(message: string): Promise<void>
-  commitFiles(files: string[], message: string): Promise<void>
+  commitAll(message: string, amend?: boolean): Promise<void>
+  commitFiles(files: string[], message: string, amend?: boolean): Promise<void>
 
   // Events
   onOpenSettings(callback: () => void): void

@@ -969,8 +969,11 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
     if (activePanel === 'diff') {
-      const scrollContainer = document.querySelector('#diff-body > div') as HTMLElement | null
-      if (scrollContainer) {
+      const children = document.querySelectorAll('#diff-body > div')
+      if (children.length >= 3) {
+        const left = children[0] as HTMLElement
+        const right = children[2] as HTMLElement
+        const scrollContainer = right.scrollHeight >= left.scrollHeight ? right : left
         const step = 60
         scrollContainer.scrollTop += e.key === 'ArrowDown' ? step : -step
       }

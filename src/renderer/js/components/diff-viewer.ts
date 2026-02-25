@@ -440,6 +440,7 @@ async function renderDiff() {
       leftContent.innerHTML = line.oldLineNo != null ? oldHighlighted[line.oldLineNo - 1] || '' : ''
     } else if (line.type === 'add') {
       leftRow.className = 'bg-white/2'
+      leftContent.innerHTML = '\u00A0'
     } else if (line.type === 'context') {
       leftContent.innerHTML = line.oldLineNo != null ? oldHighlighted[line.oldLineNo - 1] || '' : ''
     }
@@ -464,6 +465,7 @@ async function renderDiff() {
       rightContent.innerHTML = line.newLineNo != null ? newHighlighted[line.newLineNo - 1] || '' : ''
     } else if (line.type === 'remove') {
       rightRow.className = 'bg-white/2'
+      rightContent.innerHTML = '\u00A0'
     } else if (line.type === 'context') {
       rightContent.innerHTML = line.newLineNo != null ? newHighlighted[line.newLineNo - 1] || '' : ''
     }

@@ -22,7 +22,9 @@ import {
   revertFile,
   setOnGitChange,
   squashCommits,
+  startWorktreeWatcher,
   stashAndCheckout,
+  stopWorktreeWatcher,
   withSuppressedWatcher,
   writeFileContent,
 } from './git-service'
@@ -91,6 +93,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:push-to-origin', () => withSuppressedWatcher(() => pushToOrigin()))
   ipcMain.handle('git:force-push-to-origin', () => withSuppressedWatcher(() => forcePushToOrigin()))
   ipcMain.handle('git:pull-rebase', () => withSuppressedWatcher(() => pullRebase()))
+  ipcMain.handle('git:start-worktree-watcher', () => startWorktreeWatcher())
+  ipcMain.handle('git:stop-worktree-watcher', () => stopWorktreeWatcher())
 
   // App
   ipcMain.handle('app:quit-and-install', () => quitAndInstall())

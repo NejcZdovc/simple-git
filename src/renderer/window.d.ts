@@ -66,6 +66,8 @@ interface GitApi {
   pushToOrigin(): Promise<void>
   forcePushToOrigin(): Promise<void>
   pullRebase(): Promise<void>
+  startWorktreeWatcher(): Promise<void>
+  stopWorktreeWatcher(): Promise<void>
 
   // App
   quitAndInstall(): Promise<void>

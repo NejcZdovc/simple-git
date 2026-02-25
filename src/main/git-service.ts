@@ -5,6 +5,7 @@ import { getSettings } from './store'
 let git: SimpleGit | null = null
 let repoPath: string | null = null
 let gitWatchers: FSWatcher[] = []
+let worktreeWatcher: FSWatcher | null = null
 let onGitChange: (() => void) | null = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let suppressWatcher = false
@@ -71,9 +72,17 @@ function stopWatching() {
     w.close()
   }
   gitWatchers = []
+  stopWorktreeWatcher()
   if (debounceTimer) {
     clearTimeout(debounceTimer)
     debounceTimer = null
+  }
+}
+
+function stopWorktreeWatcher() {
+  if (worktreeWatcher) {
+    worktreeWatcher.close()
+    worktreeWatcher = null
   }
 }
 
@@ -119,6 +128,20 @@ async function startWatching(repoDir: string) {
   try {
     const w = fs.watch(headPath, () => emitChange())
     gitWatchers.push(w)
+  } catch {
+    // ignore
+  }
+}
+
+async function startWorktreeWatcher(): Promise<void> {
+  stopWorktreeWatcher()
+  if (!repoPath) return
+  const fs = await import('node:fs')
+  try {
+    worktreeWatcher = fs.watch(repoPath, { recursive: true }, (_event, filename) => {
+      if (filename?.startsWith('.git')) return
+      emitChange()
+    })
   } catch {
     // ignore
   }
@@ -646,6 +669,8 @@ async function pullRebase(): Promise<void> {
 export {
   openRepo,
   setOnGitChange,
+  startWorktreeWatcher,
+  stopWorktreeWatcher,
   withSuppressedWatcher,
   getBranches,
   getLocalChanges,

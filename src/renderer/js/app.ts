@@ -78,6 +78,7 @@ localChangesBtn.addEventListener('click', () => {
   setViewMode('local-changes')
   setActivePanel('commits')
   fileTree.setMultiSelect(true)
+  window.git.startWorktreeWatcher()
   loadLocalChanges()
 })
 
@@ -86,6 +87,7 @@ commitsBtn.addEventListener('click', () => {
   setViewMode('commits')
   setActivePanel('commits')
   fileTree.setMultiSelect(false)
+  window.git.stopWorktreeWatcher()
   currentFilePath = null
   if (allCommits.length > 0) {
     commitList.selectByIndex(0)
@@ -657,11 +659,13 @@ commandPalette.setOnSelect(async (item) => {
         setViewMode('local-changes')
         setActivePanel('commits')
         fileTree.setMultiSelect(true)
+        window.git.startWorktreeWatcher()
         await loadLocalChanges()
       } else if (item.data === 'commits') {
         setViewMode('commits')
         setActivePanel('commits')
         fileTree.setMultiSelect(false)
+        window.git.stopWorktreeWatcher()
         currentFilePath = null
         if (allCommits.length > 0) {
           commitList.selectByIndex(0)

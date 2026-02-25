@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('git', {
   pushToOrigin: () => ipcRenderer.invoke('git:push-to-origin'),
   forcePushToOrigin: () => ipcRenderer.invoke('git:force-push-to-origin'),
   pullRebase: () => ipcRenderer.invoke('git:pull-rebase'),
+  startWorktreeWatcher: () => ipcRenderer.invoke('git:start-worktree-watcher'),
+  stopWorktreeWatcher: () => ipcRenderer.invoke('git:stop-worktree-watcher'),
 
   // App
   quitAndInstall: () => ipcRenderer.invoke('app:quit-and-install'),

@@ -16,6 +16,7 @@ import {
   getLocalFileDiff,
   getLog,
   openRepo,
+  pullRebase,
   pushToOrigin,
   revertFile,
   setOnGitChange,
@@ -88,6 +89,7 @@ function registerIpcHandlers(): void {
   )
   ipcMain.handle('git:push-to-origin', () => withSuppressedWatcher(() => pushToOrigin()))
   ipcMain.handle('git:force-push-to-origin', () => withSuppressedWatcher(() => forcePushToOrigin()))
+  ipcMain.handle('git:pull-rebase', () => withSuppressedWatcher(() => pullRebase()))
 }
 
 export { registerIpcHandlers }

@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('git', {
     ipcRenderer.invoke('git:commit-files', files, message, !!amend),
   pushToOrigin: () => ipcRenderer.invoke('git:push-to-origin'),
   forcePushToOrigin: () => ipcRenderer.invoke('git:force-push-to-origin'),
+  pullRebase: () => ipcRenderer.invoke('git:pull-rebase'),
 
   // Events
   onOpenSettings: (callback: () => void) => {

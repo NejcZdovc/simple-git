@@ -65,6 +65,7 @@ interface GitApi {
   commitFiles(files: string[], message: string, amend?: boolean): Promise<void>
   pushToOrigin(): Promise<void>
   forcePushToOrigin(): Promise<void>
+  pullRebase(): Promise<void>
 
   // Events
   onOpenSettings(callback: () => void): void

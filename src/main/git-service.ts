@@ -638,6 +638,11 @@ async function forcePushToOrigin(): Promise<void> {
   await g.raw(['push', 'origin', branch, '--force-with-lease'])
 }
 
+async function pullRebase(): Promise<void> {
+  const g = ensureGit()
+  await g.raw(['pull', '--rebase'])
+}
+
 export {
   openRepo,
   setOnGitChange,
@@ -662,5 +667,6 @@ export {
   commitFiles,
   pushToOrigin,
   forcePushToOrigin,
+  pullRebase,
 }
 export type { CommitInfo, BranchInfo, FileChange, FileDiff }

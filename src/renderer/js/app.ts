@@ -9,6 +9,7 @@ import * as fileTree from './components/file-tree'
 import * as projectSelector from './components/project-selector'
 import * as settingsDialog from './components/settings-dialog'
 import * as squashDialog from './components/squash-dialog'
+import * as toast from './components/toast'
 import type { CommitInfo } from './types'
 
 const PAGE_SIZE = 50
@@ -182,6 +183,7 @@ async function loadLocalChanges() {
         commitSelectedBtn = null
         await loadLocalChanges()
         await refreshCommitList()
+        toast.show(isAmend ? 'Commit amended successfully' : 'Changes committed successfully')
       } catch (err) {
         alert(`${isAmend ? 'Amend' : 'Commit'} failed: ${err}`)
       }
@@ -201,6 +203,7 @@ async function loadLocalChanges() {
         commitSelectedBtn = null
         await loadLocalChanges()
         await refreshCommitList()
+        toast.show(isAmend ? 'Commit amended successfully' : 'Changes committed successfully')
       } catch (err) {
         alert(`${isAmend ? 'Amend' : 'Commit'} failed: ${err}`)
       }
@@ -679,17 +682,53 @@ commandPalette.setOnSelect(async (item) => {
       } else if (item.data === 'push-to-origin') {
         try {
           await window.git.pushToOrigin()
+          if (viewMode !== 'commits') {
+            setViewMode('commits')
+            fileTree.setMultiSelect(false)
+          }
           await refreshCommitList()
+          toast.show('Pushed to origin successfully')
         } catch (err) {
-          alert(`Push failed: ${err}`)
+          if (confirm('Push was rejected. Pull with rebase and try again?')) {
+            try {
+              await window.git.pullRebase()
+              await window.git.pushToOrigin()
+              if (viewMode !== 'commits') {
+                setViewMode('commits')
+                fileTree.setMultiSelect(false)
+              }
+              await refreshCommitList()
+              toast.show('Pulled and pushed to origin successfully')
+            } catch (retryErr) {
+              alert(`Pull rebase failed: ${retryErr}`)
+            }
+          }
         }
       } else if (item.data === 'force-push-to-origin') {
         if (!confirm('Are you sure you want to force push? This may overwrite remote commits.')) return
         try {
           await window.git.forcePushToOrigin()
+          if (viewMode !== 'commits') {
+            setViewMode('commits')
+            fileTree.setMultiSelect(false)
+          }
           await refreshCommitList()
+          toast.show('Force pushed to origin successfully')
         } catch (err) {
-          alert(`Force push failed: ${err}`)
+          if (confirm('Force push was rejected. Pull with rebase and try again?')) {
+            try {
+              await window.git.pullRebase()
+              await window.git.forcePushToOrigin()
+              if (viewMode !== 'commits') {
+                setViewMode('commits')
+                fileTree.setMultiSelect(false)
+              }
+              await refreshCommitList()
+              toast.show('Pulled and force pushed to origin successfully')
+            } catch (retryErr) {
+              alert(`Pull rebase failed: ${retryErr}`)
+            }
+          }
         }
       }
       break

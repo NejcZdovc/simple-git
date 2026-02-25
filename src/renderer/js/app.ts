@@ -123,7 +123,9 @@ async function loadLocalChanges() {
 
     fileTree.setFiles(files, null)
 
-    // Render commit UI
+    // Skip commit UI rebuild if it already exists (watcher triggers only need file tree update)
+    if (localChangesListEl.querySelector('textarea')) return
+
     localChangesListEl.innerHTML = ''
 
     const container = document.createElement('div')
@@ -180,6 +182,7 @@ async function loadLocalChanges() {
         await window.git.commitAll(message, isAmend)
         textarea.value = ''
         commitSelectedBtn = null
+        localChangesListEl.innerHTML = ''
         await loadLocalChanges()
         await refreshCommitList()
         toast.show(isAmend ? 'Commit amended successfully' : 'Changes committed successfully')
@@ -200,6 +203,7 @@ async function loadLocalChanges() {
         await window.git.commitFiles(selected, message, isAmend)
         textarea.value = ''
         commitSelectedBtn = null
+        localChangesListEl.innerHTML = ''
         await loadLocalChanges()
         await refreshCommitList()
         toast.show(isAmend ? 'Commit amended successfully' : 'Changes committed successfully')
@@ -421,6 +425,7 @@ settingsDialog.setOnDiffViewModeChange(() => {
 
 settingsDialog.setOnCommitModeChange(() => {
   if (viewMode === 'local-changes') {
+    localChangesListEl.innerHTML = ''
     loadLocalChanges()
   }
 })
@@ -977,10 +982,10 @@ document.addEventListener('keydown', (e) => {
         const step = 60
         scrollContainer.scrollTop += e.key === 'ArrowDown' ? step : -step
       }
-    } else if (activePanel === 'commits') {
+    } else if (activePanel === 'commits' && viewMode !== 'local-changes') {
       if (e.key === 'ArrowDown') commitList.selectNext()
       else commitList.selectPrev()
-    } else {
+    } else if (activePanel === 'files') {
       if (e.key === 'ArrowDown') fileTree.selectNext()
       else fileTree.selectPrev()
     }

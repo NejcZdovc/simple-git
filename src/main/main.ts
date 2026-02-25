@@ -76,6 +76,7 @@ function buildMenu() {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
+        { role: 'selectAll' },
       ],
     },
     {

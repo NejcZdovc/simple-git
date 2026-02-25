@@ -171,11 +171,19 @@ function ensureGit(): SimpleGit {
 async function getBranches(): Promise<{ branches: BranchInfo[]; current: string }> {
   const g = ensureGit()
   const summary = await g.branchLocal()
+
+  // Detached HEAD (e.g., mid-rebase) returns names like "(no" — resolve to actual branch
+  let current = summary.current
+  if (summary.detached || !summary.all.includes(current)) {
+    const head = (await g.raw(['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+    current = head === 'HEAD' ? summary.all[0] || 'main' : head
+  }
+
   const branches: BranchInfo[] = summary.all.map((name) => ({
     name,
-    current: name === summary.current,
+    current: name === current,
   }))
-  return { branches, current: summary.current }
+  return { branches, current }
 }
 
 interface LocalChange {
@@ -663,7 +671,17 @@ async function forcePushToOrigin(): Promise<void> {
 
 async function pullRebase(): Promise<void> {
   const g = ensureGit()
-  await g.raw(['pull', '--rebase'])
+  try {
+    await g.raw(['pull', '--rebase'])
+  } catch (err) {
+    // Abort the rebase so the repo doesn't get stuck in a broken state
+    try {
+      await g.raw(['rebase', '--abort'])
+    } catch {
+      // Already aborted or not in rebase state
+    }
+    throw err
+  }
 }
 
 export {

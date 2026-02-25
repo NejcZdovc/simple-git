@@ -98,16 +98,7 @@ commitsBtn.addEventListener('click', () => {
 })
 
 async function loadLocalChanges() {
-  currentCommit = null
-  currentFilePath = null
-  confirmedLargeFile = null
-  fileTree.clear()
-  diffViewer.clear()
-
   const version = ++localChangesVersion
-
-  localChangesListEl.innerHTML =
-    '<div class="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>'
 
   try {
     const [files, settings] = await Promise.all([window.git.getLocalChangesWithStats(), window.git.getSettings()])
@@ -115,6 +106,12 @@ async function loadLocalChanges() {
 
     // Discard stale result if a newer load was requested
     if (version !== localChangesVersion) return
+
+    currentCommit = null
+    currentFilePath = null
+    confirmedLargeFile = null
+    fileTree.clear()
+    diffViewer.clear()
 
     if (files.length === 0) {
       localChangesListEl.innerHTML =

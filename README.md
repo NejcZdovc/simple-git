@@ -26,7 +26,7 @@ Whether you want to clean up a branch before merging, quickly browse what change
 
 - Paginated commit log with author, date, and message
 - Multi-select with click, Shift+range, and Cmd+toggle
-- Context menu for drop and squash operations
+- Context menu with copy commit ID, drop, and squash operations
 - Branch switching via searchable dropdown with keyboard navigation
 
 ### Side-by-Side Diffs
@@ -47,6 +47,14 @@ Whether you want to clean up a branch before merging, quickly browse what change
 - **Squash commits** — select multiple commits and combine them with a custom message (pre-populated with original messages)
 - **Per-hunk revert** — click the revert button on any change in the diff gutter to undo just that hunk
 - **File revert** — right-click any changed file to restore it to the pre-commit state
+
+### Working Copy
+
+- View and commit uncommitted changes
+- Commit all or commit selected files
+- Amend mode for modifying the last commit
+- Auto-focuses working copy when switching to a project with local changes
+- Multi-select files with Cmd+click, Shift+range, or Space key
 
 ### File Browser
 
@@ -83,19 +91,35 @@ Whether you want to clean up a branch before merging, quickly browse what change
 
 ### Keyboard Navigation
 
-| Shortcut            | Action                                  |
-| ------------------- | --------------------------------------- |
-| `Cmd+P`             | Open command palette                    |
-| `Cmd+F`             | Search files in current commit          |
-| `Tab` / `Shift+Tab` | Switch between commits and files panels |
-| `Arrow Up/Down`     | Navigate within the active panel        |
-| `Enter`             | Select highlighted item                 |
-| `Escape`            | Close palette / search                  |
+| Shortcut            | Action                                       |
+| ------------------- | -------------------------------------------- |
+| `Cmd+P`             | Open command palette                         |
+| `Cmd+F`             | Search files in current commit               |
+| `Cmd+C`             | Copy selected text from diff view            |
+| `Tab` / `Shift+Tab` | Switch between commits, files, and diff panels |
+| `Arrow Up/Down`     | Navigate within the active panel             |
+| `Space`             | Toggle file selection (working copy mode)    |
+| `Enter`             | Select highlighted item                      |
+| `Escape`            | Close palette / search                       |
+
+### Auto Updates
+
+- Checks for updates on launch and once daily
+- Retries failed checks automatically (up to 3 attempts)
+- Menu item to check manually or upgrade when an update is ready
+- Silent update check when opening the About panel
+
+### Push and Pull
+
+- Push to origin from the command palette
+- Pull with rebase when push is rejected (with automatic rebase abort on conflicts)
+- Force push with confirmation
 
 ### Settings
 
 - **Drop mode** — hard (discard changes) or soft (keep as unstaged)
 - **Diff view mode** — full file or minimal (changes only)
+- **Commit mode** — normal or amend
 
 ## Download
 
@@ -164,6 +188,7 @@ src/
 │   ├── main.ts                    # App entry, menu, IPC registration
 │   ├── window-manager.ts          # Window creation and lifecycle
 │   ├── git-service.ts             # Git operations (log, diff, drop, squash, revert)
+│   ├── auto-updater.ts            # Auto-update with retry and periodic checks
 │   ├── ipc-handlers.ts            # IPC bridge between main and renderer
 │   └── store.ts                   # Persistent settings and project storage
 ├── renderer/

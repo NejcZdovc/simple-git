@@ -75,3 +75,8 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           DEBUG: electron-forge:*,electron-packager,electron-osx-sign*,@electron/osx-sign*,electron-notarize*,@electron/notarize*
         run: npm run publish
+
+      - name: Upload update metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/generate-update-yml.sh ${{ steps.version.outputs.version }}

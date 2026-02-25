@@ -6,6 +6,7 @@ const config: ForgeConfig = {
     name: "Simple Git",
     icon: "./assets/icon",
     asar: true,
+    extraResource: ["./assets/app-update.yml"],
     ignore: (file: string) => {
       if (!file) return false;
       if (file.startsWith("/.vite")) return false;

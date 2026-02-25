@@ -1,5 +1,11 @@
 import { app, Menu } from 'electron'
-import { checkForUpdates, getPendingVersion, initAutoUpdater, quitAndInstall } from './auto-updater'
+import {
+  checkForUpdates,
+  checkForUpdatesSilently,
+  getPendingVersion,
+  initAutoUpdater,
+  quitAndInstall,
+} from './auto-updater'
 import { fixPath } from './fix-path'
 import { registerIpcHandlers } from './ipc-handlers'
 import { createMainWindow } from './window-manager'
@@ -35,7 +41,13 @@ function buildMenu() {
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
+        {
+          label: `About ${app.name}`,
+          click: () => {
+            app.showAboutPanel()
+            checkForUpdatesSilently()
+          },
+        },
         { type: 'separator' },
         updateMenuItem,
         { type: 'separator' },

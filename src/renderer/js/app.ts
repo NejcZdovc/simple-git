@@ -721,8 +721,10 @@ document.getElementById('file-tree-panel')!.addEventListener('mousedown', () => 
 // Keyboard navigation
 document.addEventListener('keydown', (e) => {
   // Ignore keyboard shortcuts when typing in an input/textarea
+  // Exception: allow Tab/Shift+Tab in local-changes mode for panel cycling
   const tag = (e.target as HTMLElement).tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+  const isTabKey = e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey
+  if ((tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') && !(isTabKey && viewMode === 'local-changes')) return
 
   // Ignore if file search or command palette is open (they handle their own keys)
   if (fileSearch.isVisible()) return
@@ -748,6 +750,50 @@ document.addEventListener('keydown', (e) => {
   // Tab / Shift+Tab — navigate between panels
   if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
     e.preventDefault()
+    if (viewMode === 'local-changes') {
+      const textarea = localChangesListEl.querySelector('textarea')
+      const focused = document.activeElement as HTMLElement | null
+
+      if (e.shiftKey) {
+        // Shift+Tab always goes back to commit message
+        if (textarea) textarea.focus()
+        activePanel = 'commits'
+      } else if (!focused || focused === document.body) {
+        // Nothing focused — focus commit message
+        if (textarea) textarea.focus()
+        activePanel = 'commits'
+      } else if (focused === textarea) {
+        // Textarea → focus first commit button
+        const firstBtn = localChangesListEl.querySelector('button') as HTMLButtonElement | null
+        if (firstBtn) firstBtn.focus()
+      } else if (focused.tagName === 'BUTTON' && localChangesListEl.contains(focused)) {
+        // Button → try next enabled sibling button, then move to files
+        let nextBtn = focused.nextElementSibling as HTMLButtonElement | null
+        while (nextBtn?.tagName === 'BUTTON' && nextBtn.disabled) {
+          nextBtn = nextBtn.nextElementSibling as HTMLButtonElement | null
+        }
+        if (nextBtn?.tagName === 'BUTTON') {
+          nextBtn.focus()
+        } else {
+          // Move to changed files panel
+          ;(document.activeElement as HTMLElement)?.blur()
+          activePanel = 'files'
+          const currentFiles = fileTree.getFiles()
+          if (currentFiles.length > 0) {
+            if (currentFilePath) {
+              fileTree.selectByPath(currentFilePath)
+            } else {
+              fileTree.selectNext()
+            }
+          }
+        }
+      } else {
+        // From files or elsewhere — wrap back to commit message
+        if (textarea) textarea.focus()
+        activePanel = 'commits'
+      }
+      return
+    }
     if (e.shiftKey) {
       // Shift+Tab always goes back to commits
       activePanel = 'commits'

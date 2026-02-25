@@ -351,6 +351,7 @@ async function renderDiff() {
   gutterInner.className = 'relative'
   gutterInner.style.height = `${displayLines.length * ROW_HEIGHT}px`
 
+  const gutterButtons: { startIdx: number; btn: HTMLButtonElement }[] = []
   for (const startIdx of displayHunkStarts) {
     const hunk = displayLineToHunk.get(startIdx)!
     const btn = document.createElement('button')
@@ -363,6 +364,7 @@ async function renderDiff() {
       revertHunk(hunk, diff.oldContent, diff.newContent, diff.filePath)
     })
     gutterInner.appendChild(btn)
+    gutterButtons.push({ startIdx, btn })
   }
 
   gutter.appendChild(gutterInner)
@@ -507,15 +509,24 @@ async function renderDiff() {
   leftSide.addEventListener('scroll', leftScrollHandler)
   rightSide.addEventListener('scroll', rightScrollHandler)
 
-  // Scroll to first change
-  if (firstChangeDisplayIdx > 0) {
-    requestAnimationFrame(() => {
-      const scrollTop = firstChangeDisplayIdx * ROW_HEIGHT
+  // Align gutter buttons to actual row positions and scroll to first change
+  requestAnimationFrame(() => {
+    for (const { startIdx, btn } of gutterButtons) {
+      const row = leftBody.children[startIdx] as HTMLElement | undefined
+      if (row) {
+        btn.style.top = `${row.offsetTop}px`
+      }
+    }
+    gutterInner.style.height = `${leftTable.offsetHeight}px`
+
+    if (firstChangeDisplayIdx > 0) {
+      const firstRow = leftBody.children[firstChangeDisplayIdx] as HTMLElement | undefined
+      const scrollTop = firstRow ? firstRow.offsetTop : firstChangeDisplayIdx * ROW_HEIGHT
       leftSide.scrollTop = scrollTop
       rightSide.scrollTop = scrollTop
       gutterInner.style.transform = `translateY(-${scrollTop}px)`
-    })
-  }
+    }
+  })
 }
 
 async function revertHunk(hunk: Hunk, oldContent: string, newContent: string, filePath: string): Promise<void> {

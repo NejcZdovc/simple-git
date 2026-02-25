@@ -1,4 +1,5 @@
 import { app, Menu } from 'electron'
+import { checkForUpdates, getPendingVersion, initAutoUpdater, quitAndInstall } from './auto-updater'
 import { registerIpcHandlers } from './ipc-handlers'
 import { createMainWindow } from './window-manager'
 
@@ -12,13 +13,26 @@ app.on('second-instance', () => {
   createMainWindow()
 })
 
-app.whenReady().then(() => {
-  // Build app menu
+function buildMenu() {
+  const pendingVersion = getPendingVersion()
+
+  const updateMenuItem: Electron.MenuItemConstructorOptions = pendingVersion
+    ? {
+        label: `Upgrade to ${pendingVersion}`,
+        click: () => quitAndInstall(),
+      }
+    : {
+        label: 'Check for Updates...',
+        click: () => checkForUpdates(),
+      }
+
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: app.name,
       submenu: [
         { role: 'about' },
+        { type: 'separator' },
+        updateMenuItem,
         { type: 'separator' },
         {
           label: 'Preferences...',
@@ -34,18 +48,6 @@ app.whenReady().then(() => {
         { role: 'unhide' },
         { type: 'separator' },
         { role: 'quit' },
-      ],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
       ],
     },
     {
@@ -66,12 +68,20 @@ app.whenReady().then(() => {
     },
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+app.whenReady().then(() => {
+  // Build app menu
+  buildMenu()
 
   // Register IPC handlers
   registerIpcHandlers()
 
   // Create main window
   createMainWindow()
+
+  // Check for updates (rebuild menu when update is downloaded)
+  initAutoUpdater(() => buildMenu())
 })
 
 app.on('window-all-closed', () => {

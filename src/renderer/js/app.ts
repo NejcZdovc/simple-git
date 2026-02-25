@@ -967,6 +967,14 @@ document.addEventListener('keydown', (e) => {
   }
 })
 
+// Auto-update notification
+window.git.onUpdateReady(() => {
+  toast.show('A new version is ready', {
+    label: 'Restart',
+    onClick: () => window.git.quitAndInstall(),
+  })
+})
+
 // Initialize
 async function init() {
   setActivePanel('commits')

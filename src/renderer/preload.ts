@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('git', {
   forcePushToOrigin: () => ipcRenderer.invoke('git:force-push-to-origin'),
   pullRebase: () => ipcRenderer.invoke('git:pull-rebase'),
 
+  // App
+  quitAndInstall: () => ipcRenderer.invoke('app:quit-and-install'),
+
   // Events
   onOpenSettings: (callback: () => void) => {
     ipcRenderer.removeAllListeners('open-settings')
@@ -46,5 +49,9 @@ contextBridge.exposeInMainWorld('git', {
   onGitChanged: (callback: () => void) => {
     ipcRenderer.removeAllListeners('git:changed')
     ipcRenderer.on('git:changed', () => callback())
+  },
+  onUpdateReady: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('app:update-ready')
+    ipcRenderer.on('app:update-ready', () => callback())
   },
 })

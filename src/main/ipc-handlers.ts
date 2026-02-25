@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { quitAndInstall } from './auto-updater'
 import {
   checkoutBranch,
   commitAll,
@@ -90,6 +91,9 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:push-to-origin', () => withSuppressedWatcher(() => pushToOrigin()))
   ipcMain.handle('git:force-push-to-origin', () => withSuppressedWatcher(() => forcePushToOrigin()))
   ipcMain.handle('git:pull-rebase', () => withSuppressedWatcher(() => pullRebase()))
+
+  // App
+  ipcMain.handle('app:quit-and-install', () => quitAndInstall())
 }
 
 export { registerIpcHandlers }

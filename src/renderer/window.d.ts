@@ -67,9 +67,13 @@ interface GitApi {
   forcePushToOrigin(): Promise<void>
   pullRebase(): Promise<void>
 
+  // App
+  quitAndInstall(): Promise<void>
+
   // Events
   onOpenSettings(callback: () => void): void
   onGitChanged(callback: () => void): void
+  onUpdateReady(callback: () => void): void
 }
 
 interface Window {

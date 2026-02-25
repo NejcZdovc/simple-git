@@ -9,6 +9,7 @@ export default defineConfig({
         'electron/main',
         ...builtinModules.flatMap((m) => [m, `node:${m}`]),
         'simple-git',
+        'electron-updater',
       ],
     },
   },

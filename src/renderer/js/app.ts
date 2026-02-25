@@ -470,8 +470,6 @@ async function openProject(path: string) {
     await window.git.openRepo(path)
     await window.git.setLastProject(path)
     projectSelector.setCurrentProject(path)
-    setViewMode('commits')
-    fileTree.setMultiSelect(false)
 
     const { branches, current } = await window.git.getBranches()
     branchSelector.setBranches(branches, current)
@@ -479,6 +477,17 @@ async function openProject(path: string) {
     await loadLog(current)
     fileTree.clear()
     diffViewer.clear()
+
+    const changes = await window.git.getLocalChanges()
+    if (changes.length > 0) {
+      setViewMode('local-changes')
+      fileTree.setMultiSelect(true)
+      window.git.startWorktreeWatcher()
+      loadLocalChanges()
+    } else {
+      setViewMode('commits')
+      fileTree.setMultiSelect(false)
+    }
   } catch (err) {
     console.error('Failed to open project:', err)
     alert(`Failed to open project: ${err}`)
@@ -949,6 +958,13 @@ document.addEventListener('keydown', (e) => {
         }
       }
     }
+    return
+  }
+
+  // Space — toggle file selection in local-changes mode
+  if (e.key === ' ' && activePanel === 'files' && viewMode === 'local-changes') {
+    e.preventDefault()
+    fileTree.toggleCurrentSelection()
     return
   }
 

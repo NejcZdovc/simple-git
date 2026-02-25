@@ -626,6 +626,18 @@ async function commitFiles(filePaths: string[], message: string, amend?: boolean
   await g.raw(commitArgs)
 }
 
+async function pushToOrigin(): Promise<void> {
+  const g = ensureGit()
+  const branch = (await g.raw(['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+  await g.raw(['push', 'origin', branch])
+}
+
+async function forcePushToOrigin(): Promise<void> {
+  const g = ensureGit()
+  const branch = (await g.raw(['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+  await g.raw(['push', 'origin', branch, '--force-with-lease'])
+}
+
 export {
   openRepo,
   setOnGitChange,
@@ -648,5 +660,7 @@ export {
   writeFileContent,
   commitAll,
   commitFiles,
+  pushToOrigin,
+  forcePushToOrigin,
 }
 export type { CommitInfo, BranchInfo, FileChange, FileDiff }

@@ -6,6 +6,7 @@ import {
   discardAndCheckout,
   discardLocalChanges,
   dropCommit,
+  forcePushToOrigin,
   getBranches,
   getCommitFiles,
   getCommitMessage,
@@ -15,6 +16,7 @@ import {
   getLocalFileDiff,
   getLog,
   openRepo,
+  pushToOrigin,
   revertFile,
   setOnGitChange,
   squashCommits,
@@ -84,6 +86,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:commit-files', (_e, files: string[], message: string, amend: boolean) =>
     withSuppressedWatcher(() => commitFiles(files, message, amend)),
   )
+  ipcMain.handle('git:push-to-origin', () => withSuppressedWatcher(() => pushToOrigin()))
+  ipcMain.handle('git:force-push-to-origin', () => withSuppressedWatcher(() => forcePushToOrigin()))
 }
 
 export { registerIpcHandlers }

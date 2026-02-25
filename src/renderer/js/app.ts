@@ -16,12 +16,28 @@ let currentPage = 0
 let currentCommit: CommitInfo | null = null
 let currentFilePath: string | null = null
 let allCommits: CommitInfo[] = []
-let activePanel: 'commits' | 'files' = 'commits'
+let activePanel: 'commits' | 'files' | 'diff' = 'commits'
 let confirmedLargeFile: string | null = null
 let viewMode: 'commits' | 'local-changes' = 'commits'
 let commitSelectedBtn: HTMLButtonElement | null = null
 let diffVersion = 0
 let localChangesVersion = 0
+
+const panelIds: Record<string, string> = {
+  commits: 'commit-list-panel',
+  files: 'file-tree-panel',
+  diff: 'diff-viewer-panel',
+}
+
+function setActivePanel(panel: 'commits' | 'files' | 'diff') {
+  if (activePanel !== panel) {
+    const prev = document.getElementById(panelIds[activePanel])
+    prev?.classList.remove('panel-focused')
+  }
+  activePanel = panel
+  const next = document.getElementById(panelIds[panel])
+  next?.classList.add('panel-focused')
+}
 
 // Local changes mode DOM elements
 const localChangesBtn = document.getElementById('local-changes-btn')!
@@ -59,6 +75,7 @@ function setViewMode(mode: 'commits' | 'local-changes') {
 localChangesBtn.addEventListener('click', () => {
   if (viewMode === 'local-changes') return
   setViewMode('local-changes')
+  setActivePanel('commits')
   fileTree.setMultiSelect(true)
   loadLocalChanges()
 })
@@ -66,6 +83,7 @@ localChangesBtn.addEventListener('click', () => {
 commitsBtn.addEventListener('click', () => {
   if (viewMode === 'commits') return
   setViewMode('commits')
+  setActivePanel('commits')
   fileTree.setMultiSelect(false)
   currentFilePath = null
   if (allCommits.length > 0) {
@@ -553,6 +571,20 @@ async function openCommandPalette() {
         data: 'commit-mode-commit',
       })
     }
+    paletteItems.push({
+      id: 'action:push-to-origin',
+      label: 'Push to Origin',
+      detail: 'Push current branch to origin',
+      category: 'action',
+      data: 'push-to-origin',
+    })
+    paletteItems.push({
+      id: 'action:force-push-to-origin',
+      label: 'Force Push to Origin',
+      detail: 'Force push current branch to origin (--force-with-lease)',
+      category: 'action',
+      data: 'force-push-to-origin',
+    })
   } catch {
     // ignore — no project open
   }
@@ -620,10 +652,12 @@ commandPalette.setOnSelect(async (item) => {
     case 'action':
       if (item.data === 'local-changes') {
         setViewMode('local-changes')
+        setActivePanel('commits')
         fileTree.setMultiSelect(true)
         await loadLocalChanges()
       } else if (item.data === 'commits') {
         setViewMode('commits')
+        setActivePanel('commits')
         fileTree.setMultiSelect(false)
         currentFilePath = null
         if (allCommits.length > 0) {
@@ -641,6 +675,21 @@ commandPalette.setOnSelect(async (item) => {
         await window.git.updateSettings({ commitMode: newMode })
         if (viewMode === 'local-changes') {
           await loadLocalChanges()
+        }
+      } else if (item.data === 'push-to-origin') {
+        try {
+          await window.git.pushToOrigin()
+          await refreshCommitList()
+        } catch (err) {
+          alert(`Push failed: ${err}`)
+        }
+      } else if (item.data === 'force-push-to-origin') {
+        if (!confirm('Are you sure you want to force push? This may overwrite remote commits.')) return
+        try {
+          await window.git.forcePushToOrigin()
+          await refreshCommitList()
+        } catch (err) {
+          alert(`Force push failed: ${err}`)
         }
       }
       break
@@ -692,7 +741,7 @@ commandPalette.setOnSelect(async (item) => {
       break
     }
     case 'file':
-      activePanel = 'files'
+      setActivePanel('files')
       currentFilePath = item.data
       fileTree.selectByPath(item.data)
       if (viewMode === 'local-changes' || currentCommit) {
@@ -705,17 +754,17 @@ commandPalette.setOnSelect(async (item) => {
 // Wire up file search
 fileSearch.setOnSelect(async (path) => {
   if (viewMode !== 'local-changes' && !currentCommit) return
-  activePanel = 'files'
+  setActivePanel('files')
   currentFilePath = path
   fileTree.selectByPath(path)
 })
 
 // Focus tracking — click on panels sets active panel
 document.getElementById('commit-list-panel')!.addEventListener('mousedown', () => {
-  activePanel = 'commits'
+  setActivePanel('commits')
 })
 document.getElementById('file-tree-panel')!.addEventListener('mousedown', () => {
-  activePanel = 'files'
+  setActivePanel('files')
 })
 
 // Keyboard navigation
@@ -755,18 +804,27 @@ document.addEventListener('keydown', (e) => {
       const focused = document.activeElement as HTMLElement | null
 
       if (e.shiftKey) {
-        // Shift+Tab always goes back to commit message
-        if (textarea) textarea.focus()
-        activePanel = 'commits'
-      } else if (!focused || focused === document.body) {
-        // Nothing focused — focus commit message
-        if (textarea) textarea.focus()
-        activePanel = 'commits'
-      } else if (focused === textarea) {
+        if (activePanel === 'diff') {
+          // Diff → back to files
+          setActivePanel('files')
+          const currentFiles = fileTree.getFiles()
+          if (currentFiles.length > 0) {
+            if (currentFilePath) {
+              fileTree.selectByPath(currentFilePath)
+            } else {
+              fileTree.selectNext()
+            }
+          }
+        } else {
+          // Anything else → back to commit message
+          if (textarea) textarea.focus()
+          setActivePanel('commits')
+        }
+      } else if (focused && focused === textarea) {
         // Textarea → focus first commit button
         const firstBtn = localChangesListEl.querySelector('button') as HTMLButtonElement | null
         if (firstBtn) firstBtn.focus()
-      } else if (focused.tagName === 'BUTTON' && localChangesListEl.contains(focused)) {
+      } else if (focused?.tagName === 'BUTTON' && localChangesListEl.contains(focused)) {
         // Button → try next enabled sibling button, then move to files
         let nextBtn = focused.nextElementSibling as HTMLButtonElement | null
         while (nextBtn?.tagName === 'BUTTON' && nextBtn.disabled) {
@@ -777,7 +835,7 @@ document.addEventListener('keydown', (e) => {
         } else {
           // Move to changed files panel
           ;(document.activeElement as HTMLElement)?.blur()
-          activePanel = 'files'
+          setActivePanel('files')
           const currentFiles = fileTree.getFiles()
           if (currentFiles.length > 0) {
             if (currentFilePath) {
@@ -787,27 +845,23 @@ document.addEventListener('keydown', (e) => {
             }
           }
         }
-      } else {
-        // From files or elsewhere — wrap back to commit message
+      } else if (activePanel === 'files') {
+        // Files → diff view
+        setActivePanel('diff')
+      } else if (activePanel === 'diff') {
+        // Diff → wrap back to commit message
         if (textarea) textarea.focus()
-        activePanel = 'commits'
+        setActivePanel('commits')
+      } else {
+        if (textarea) textarea.focus()
+        setActivePanel('commits')
       }
       return
     }
     if (e.shiftKey) {
-      // Shift+Tab always goes back to commits
-      activePanel = 'commits'
-      if (commitList.getCurrentIndex() < 0) {
-        commitList.selectNext()
-      }
-    } else {
-      // Tab goes forward: commits → files
-      activePanel = activePanel === 'commits' ? 'files' : 'commits'
-      if (activePanel === 'commits') {
-        if (commitList.getCurrentIndex() < 0) {
-          commitList.selectNext()
-        }
-      } else {
+      // Shift+Tab goes back: diff → files → commits
+      if (activePanel === 'diff') {
+        setActivePanel('files')
         const currentFiles = fileTree.getFiles()
         if (currentFiles.length > 0) {
           if (currentFilePath) {
@@ -815,6 +869,40 @@ document.addEventListener('keydown', (e) => {
           } else {
             fileTree.selectNext()
           }
+        }
+      } else if (activePanel === 'files') {
+        setActivePanel('commits')
+        if (commitList.getCurrentIndex() < 0) {
+          commitList.selectNext()
+        }
+      } else {
+        setActivePanel('commits')
+        if (commitList.getCurrentIndex() < 0) {
+          commitList.selectNext()
+        }
+      }
+    } else {
+      // Tab goes forward: commits → files → diff → commits
+      // Skip panels that have no content
+      if (activePanel === 'commits') {
+        const currentFiles = fileTree.getFiles()
+        if (commitList.getCurrentIndex() < 0) {
+          // No commit selected — select first commit
+          commitList.selectNext()
+        } else if (currentFiles.length > 0) {
+          setActivePanel('files')
+          if (currentFilePath) {
+            fileTree.selectByPath(currentFilePath)
+          } else {
+            fileTree.selectNext()
+          }
+        }
+      } else if (activePanel === 'files') {
+        setActivePanel('diff')
+      } else {
+        setActivePanel('commits')
+        if (commitList.getCurrentIndex() < 0) {
+          commitList.selectNext()
         }
       }
     }
@@ -824,7 +912,13 @@ document.addEventListener('keydown', (e) => {
   // Arrow keys
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
-    if (activePanel === 'commits') {
+    if (activePanel === 'diff') {
+      const scrollContainer = document.querySelector('#diff-body > div') as HTMLElement | null
+      if (scrollContainer) {
+        const step = 60
+        scrollContainer.scrollTop += e.key === 'ArrowDown' ? step : -step
+      }
+    } else if (activePanel === 'commits') {
       if (e.key === 'ArrowDown') commitList.selectNext()
       else commitList.selectPrev()
     } else {
@@ -836,6 +930,7 @@ document.addEventListener('keydown', (e) => {
 
 // Initialize
 async function init() {
+  setActivePanel('commits')
   const store = await window.git.getProjects()
   projectSelector.setProjects(store.projects, store.lastProject || null)
 

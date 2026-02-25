@@ -63,6 +63,8 @@ interface GitApi {
   writeFileContent(filePath: string, content: string): Promise<void>
   commitAll(message: string, amend?: boolean): Promise<void>
   commitFiles(files: string[], message: string, amend?: boolean): Promise<void>
+  pushToOrigin(): Promise<void>
+  forcePushToOrigin(): Promise<void>
 
   // Events
   onOpenSettings(callback: () => void): void

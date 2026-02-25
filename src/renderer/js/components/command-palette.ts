@@ -87,6 +87,7 @@ function renderResults() {
   resultsEl.innerHTML = ''
 
   const limited = filtered.slice(0, 50)
+  const hasQuery = inputEl.value.trim() !== ''
 
   // Group by category
   const groups = new Map<PaletteItem['category'], PaletteItem[]>()
@@ -96,6 +97,16 @@ function renderResults() {
       list.push(item)
     } else {
       groups.set(item.category, [item])
+    }
+  }
+
+  // Limit commits and files when no search query is entered
+  if (!hasQuery) {
+    for (const cat of ['commit', 'file'] as const) {
+      const group = groups.get(cat)
+      if (group && group.length > 10) {
+        groups.set(cat, group.slice(0, 10))
+      }
     }
   }
 

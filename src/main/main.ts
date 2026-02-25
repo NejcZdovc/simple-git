@@ -1,7 +1,12 @@
 import { app, Menu } from 'electron'
 import { checkForUpdates, getPendingVersion, initAutoUpdater, quitAndInstall } from './auto-updater'
+import { fixPath } from './fix-path'
 import { registerIpcHandlers } from './ipc-handlers'
 import { createMainWindow } from './window-manager'
+
+// Electron apps launched from Finder on macOS get a minimal PATH that
+// excludes /usr/local/bin and /opt/homebrew/bin where tools like gpg live.
+fixPath()
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock()

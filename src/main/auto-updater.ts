@@ -3,7 +3,7 @@ import { autoUpdater } from 'electron-updater'
 
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 60_000
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 let pendingVersion: string | null = null
 let onUpdateDownloaded: (() => void) | null = null

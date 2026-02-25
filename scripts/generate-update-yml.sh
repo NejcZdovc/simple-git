@@ -15,7 +15,8 @@ if [ -z "$ZIP_PATH" ]; then
   exit 1
 fi
 
-ZIP_NAME=$(basename "$ZIP_PATH")
+# Electron Forge's GitHub publisher replaces spaces with dots in asset names
+ZIP_NAME=$(basename "$ZIP_PATH" | tr ' ' '.')
 ZIP_SIZE=$(stat -f%z "$ZIP_PATH" 2>/dev/null || stat -c%s "$ZIP_PATH")
 ZIP_SHA512=$(shasum -a 512 "$ZIP_PATH" | awk '{print $1}' | xxd -r -p | base64)
 RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")

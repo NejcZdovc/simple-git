@@ -1,7 +1,7 @@
 {
   "name": "simple-git-app",
   "productName": "Simple Git",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "macOS Git management app for browsing history, diffs, and commit operations",
   "main": ".vite/build/main.js",
   "repository": {

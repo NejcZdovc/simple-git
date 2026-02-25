@@ -488,6 +488,23 @@ function getSelectedFiles(): string[] {
   return [...selectedFiles]
 }
 
+function toggleCurrentSelection() {
+  if (!multiSelectEnabled || !selectedFile) return
+  if (selectedFiles.size === 0 && selectedFile) {
+    selectedFiles.add(selectedFile)
+    updateMultiSelectHighlighting()
+    onSelectionChange?.([...selectedFiles])
+    return
+  }
+  if (selectedFiles.has(selectedFile)) {
+    selectedFiles.delete(selectedFile)
+  } else {
+    selectedFiles.add(selectedFile)
+  }
+  updateMultiSelectHighlighting()
+  onSelectionChange?.([...selectedFiles])
+}
+
 function setMultiSelect(enabled: boolean) {
   multiSelectEnabled = enabled
   if (!enabled) {
@@ -505,4 +522,5 @@ export {
   selectNext,
   selectPrev,
   selectByPath,
+  toggleCurrentSelection,
 }

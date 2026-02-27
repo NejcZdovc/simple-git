@@ -423,7 +423,16 @@ window.git.onOpenSettings(() => {
 
 // Watch for external git changes (commits, staging from terminal, other tools)
 window.git.onGitChanged(async () => {
-  await refreshCommitList()
+  const { branches, current } = await window.git.getBranches()
+  const branchChanged = current !== branchSelector.getCurrentBranch()
+  branchSelector.setBranches(branches, current)
+
+  if (branchChanged) {
+    await loadLog(current)
+  } else {
+    await refreshCommitList()
+  }
+
   if (viewMode === 'local-changes') {
     await loadLocalChanges()
   }
@@ -838,7 +847,8 @@ document.addEventListener('keydown', (e) => {
   // Exception: allow Tab/Shift+Tab in local-changes mode for panel cycling
   const tag = (e.target as HTMLElement).tagName
   const isTabKey = e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey
-  if ((tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') && !(isTabKey && viewMode === 'local-changes')) return
+  const isGlobalShortcut = (e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'f')
+  if ((tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') && !isGlobalShortcut && !(isTabKey && viewMode === 'local-changes')) return
 
   // Ignore if file search or command palette is open (they handle their own keys)
   if (fileSearch.isVisible()) return

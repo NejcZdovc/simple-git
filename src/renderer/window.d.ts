@@ -57,6 +57,7 @@ interface GitApi {
     filePath: string,
   ): Promise<{ oldContent: string; newContent: string; filePath: string; status: string; tooLarge?: boolean }>
   revertFile(hash: string, filePath: string): Promise<void>
+  revertFolder(hash: string, folderPath: string): Promise<void>
   dropCommit(hash: string): Promise<void>
   squashCommits(hashes: string[], message: string): Promise<void>
   getCommitMessage(hash: string): Promise<string>

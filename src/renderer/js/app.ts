@@ -330,12 +330,22 @@ fileTree.setCallbacks({
     if (!currentCommit) return
     try {
       await window.git.revertFile(currentCommit.hash, path)
-      // Refresh files
       const files = await window.git.getCommitFiles(currentCommit.hash)
       fileTree.setFiles(files, currentCommit)
     } catch (err) {
       console.error('Failed to revert file:', err)
       alert(`Failed to revert file: ${err}`)
+    }
+  },
+  onFolderRevert: async (folderPath) => {
+    if (!currentCommit) return
+    try {
+      await window.git.revertFolder(currentCommit.hash, folderPath)
+      const files = await window.git.getCommitFiles(currentCommit.hash)
+      fileTree.setFiles(files, currentCommit)
+    } catch (err) {
+      console.error('Failed to revert folder:', err)
+      alert(`Failed to revert folder: ${err}`)
     }
   },
   onSelectionChange: (paths) => {
@@ -692,6 +702,7 @@ commandPalette.setOnSelect(async (item) => {
         const newMode = item.data === 'commit-mode-amend' ? 'amend' : 'commit'
         await window.git.updateSettings({ commitMode: newMode })
         if (viewMode === 'local-changes') {
+          localChangesListEl.innerHTML = ''
           await loadLocalChanges()
         }
       } else if (item.data === 'push-to-origin') {

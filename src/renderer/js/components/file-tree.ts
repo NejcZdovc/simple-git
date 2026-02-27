@@ -18,6 +18,7 @@ let multiSelectEnabled = false
 
 let onFileSelect: ((path: string) => void) | null = null
 let onFileRevert: ((path: string) => void) | null = null
+let onFolderRevert: ((path: string) => void) | null = null
 let onSelectionChange: ((paths: string[]) => void) | null = null
 
 const activeViewClasses = ['bg-accent/15', 'text-accent']
@@ -26,10 +27,12 @@ const inactiveViewClasses = ['bg-transparent', 'text-text-muted']
 function setCallbacks(cbs: {
   onFileSelect: (path: string) => void
   onFileRevert: (path: string) => void
+  onFolderRevert?: (path: string) => void
   onSelectionChange?: (paths: string[]) => void
 }) {
   onFileSelect = cbs.onFileSelect
   onFileRevert = cbs.onFileRevert
+  onFolderRevert = cbs.onFolderRevert || null
   onSelectionChange = cbs.onSelectionChange || null
 }
 
@@ -136,6 +139,23 @@ function showFileContextMenu(e: MouseEvent, f: FileChange) {
       action: () => {
         if (confirm(`Revert ${f.path}?`)) {
           onFileRevert?.(f.path)
+        }
+      },
+    },
+  ])
+}
+
+function showFolderContextMenu(e: MouseEvent, dirPath: string) {
+  if (e.ctrlKey && !e.metaKey) return
+  e.preventDefault()
+  e.stopPropagation()
+  contextMenu.show(e.clientX, e.clientY, [
+    {
+      label: 'Revert Folder',
+      destructive: true,
+      action: () => {
+        if (confirm(`Revert all files in ${dirPath}/?`)) {
+          onFolderRevert?.(dirPath)
         }
       },
     },
@@ -348,6 +368,7 @@ function renderTreeNode(node: TreeNode, container: HTMLElement, depth: number, p
       }
       renderFiles()
     })
+    header.addEventListener('contextmenu', (e) => showFolderContextMenu(e, dirPath))
     dirEl.appendChild(header)
 
     if (!isCollapsed) {

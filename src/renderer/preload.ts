@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('git', {
   getCommitFiles: (hash: string) => ipcRenderer.invoke('git:get-commit-files', hash),
   getFileDiff: (hash: string, filePath: string) => ipcRenderer.invoke('git:get-file-diff', hash, filePath),
   revertFile: (hash: string, filePath: string) => ipcRenderer.invoke('git:revert-file', hash, filePath),
+  revertFolder: (hash: string, folderPath: string) => ipcRenderer.invoke('git:revert-folder', hash, folderPath),
   dropCommit: (hash: string) => ipcRenderer.invoke('git:drop-commit', hash),
   squashCommits: (hashes: string[], message: string) => ipcRenderer.invoke('git:squash-commits', hashes, message),
   getCommitMessage: (hash: string) => ipcRenderer.invoke('git:get-commit-message', hash),

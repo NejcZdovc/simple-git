@@ -20,6 +20,7 @@ import {
   pullRebase,
   pushToOrigin,
   revertFile,
+  revertFolder,
   setOnGitChange,
   squashCommits,
   startWorktreeWatcher,
@@ -75,6 +76,9 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:get-file-diff', (_e, hash: string, filePath: string) => getFileDiff(hash, filePath))
   ipcMain.handle('git:revert-file', (_e, hash: string, filePath: string) =>
     withSuppressedWatcher(() => revertFile(hash, filePath)),
+  )
+  ipcMain.handle('git:revert-folder', (_e, hash: string, folderPath: string) =>
+    withSuppressedWatcher(() => revertFolder(hash, folderPath)),
   )
   ipcMain.handle('git:drop-commit', (_e, hash: string) => withSuppressedWatcher(() => dropCommit(hash)))
   ipcMain.handle('git:squash-commits', (_e, hashes: string[], message: string) =>

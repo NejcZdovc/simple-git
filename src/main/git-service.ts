@@ -419,6 +419,38 @@ async function revertFile(hash: string, filePath: string): Promise<void> {
   }
 }
 
+async function revertFolder(hash: string, folderPath: string): Promise<void> {
+  validateHash(hash)
+  if (!repoPath) throw new Error('No repository opened')
+  const g = ensureGit()
+
+  // Get all files changed in this commit under the folder
+  const statusResult = await g.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', hash, '--', folderPath])
+  const lines = statusResult.trim().split('\n').filter(Boolean)
+
+  for (const line of lines) {
+    const parts = line.split('\t')
+    if (parts.length < 2) continue
+    const status = parts[0]
+    const filePath = parts[1]
+
+    if (status === 'A') {
+      const fs = await import('node:fs/promises')
+      const fullPath = safeResolvePath(repoPath, filePath)
+      await g.raw(['rm', '--cached', filePath])
+      try {
+        await fs.unlink(fullPath)
+      } catch (unlinkErr) {
+        await g.raw(['add', filePath])
+        throw unlinkErr
+      }
+    } else {
+      await g.raw(['checkout', `${hash}^`, '--', filePath])
+      await g.raw(['reset', 'HEAD', '--', filePath])
+    }
+  }
+}
+
 async function dropCommit(hash: string): Promise<void> {
   validateHash(hash)
   const g = ensureGit()
@@ -702,6 +734,7 @@ export {
   getCommitFiles,
   getFileDiff,
   revertFile,
+  revertFolder,
   dropCommit,
   squashCommits,
   getCommitMessage,

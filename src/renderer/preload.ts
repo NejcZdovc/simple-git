@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('git', {
   pushToOrigin: () => ipcRenderer.invoke('git:push-to-origin'),
   forcePushToOrigin: () => ipcRenderer.invoke('git:force-push-to-origin'),
   pullRebase: () => ipcRenderer.invoke('git:pull-rebase'),
+  getSyncStatus: (branch: string) => ipcRenderer.invoke('git:get-sync-status', branch),
   startWorktreeWatcher: () => ipcRenderer.invoke('git:start-worktree-watcher'),
   stopWorktreeWatcher: () => ipcRenderer.invoke('git:stop-worktree-watcher'),
 

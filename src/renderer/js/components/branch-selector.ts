@@ -6,6 +6,8 @@ let currentBranch = ''
 let branches: BranchInfo[] = []
 let menuOpen = false
 let onBranchChange: ((name: string) => void) | null = null
+let syncStatus: { ahead: number; behind: number } | null = null
+let onSyncClick: (() => void) | null = null
 
 function setOnBranchChange(cb: (name: string) => void) {
   onBranchChange = cb
@@ -13,6 +15,7 @@ function setOnBranchChange(cb: (name: string) => void) {
 
 function render() {
   container.innerHTML = ''
+  container.className = 'relative flex items-center gap-1.5'
 
   const btn = document.createElement('button')
   btn.className =
@@ -26,6 +29,39 @@ function render() {
     toggleMenu()
   })
   container.appendChild(btn)
+
+  if (syncStatus && (syncStatus.ahead > 0 || syncStatus.behind > 0)) {
+    const badge = document.createElement('button')
+    badge.type = 'button'
+    const parts: string[] = []
+    if (syncStatus.ahead > 0) parts.push(`↑${syncStatus.ahead}`)
+    if (syncStatus.behind > 0) parts.push(`↓${syncStatus.behind}`)
+    badge.textContent = parts.join(' ')
+
+    const titleParts: string[] = []
+    if (syncStatus.ahead > 0)
+      titleParts.push(`${syncStatus.ahead} commit${syncStatus.ahead === 1 ? '' : 's'} ahead of origin`)
+    if (syncStatus.behind > 0)
+      titleParts.push(`${syncStatus.behind} commit${syncStatus.behind === 1 ? '' : 's'} behind origin`)
+    titleParts.push('Click to pull')
+    badge.title = titleParts.join(' · ')
+
+    let colorClasses: string
+    if (syncStatus.behind > 0 && syncStatus.ahead > 0) {
+      colorClasses = 'text-yellow-400'
+    } else if (syncStatus.behind > 0) {
+      colorClasses = 'text-yellow-400'
+    } else {
+      colorClasses = 'text-accent'
+    }
+
+    badge.className = `flex items-center px-2 py-[5px] border border-border rounded-sm bg-bg-secondary text-xs font-medium cursor-pointer transition-all duration-150 font-[inherit] hover:bg-bg-card hover:border-white/15 ${colorClasses}`
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation()
+      onSyncClick?.()
+    })
+    container.appendChild(badge)
+  }
 }
 
 function toggleMenu() {
@@ -164,4 +200,13 @@ function getCurrentBranch(): string {
   return currentBranch
 }
 
-export { setOnBranchChange, setBranches, getCurrentBranch }
+function setSyncStatus(status: { ahead: number; behind: number } | null) {
+  syncStatus = status
+  render()
+}
+
+function setOnSyncClick(cb: () => void) {
+  onSyncClick = cb
+}
+
+export { setOnBranchChange, setBranches, getCurrentBranch, setSyncStatus, setOnSyncClick }

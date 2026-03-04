@@ -791,6 +791,21 @@ async function forcePushToOrigin(): Promise<void> {
   await g.raw(['push', 'origin', branch, '--force-with-lease'])
 }
 
+async function getSyncStatus(branch: string): Promise<{ ahead: number; behind: number }> {
+  validateBranchName(branch)
+  const g = ensureGit()
+  try {
+    const result = await g.raw(['rev-list', '--count', '--left-right', `${branch}...origin/${branch}`])
+    const parts = result.trim().split('\t')
+    return {
+      ahead: Number.parseInt(parts[0], 10) || 0,
+      behind: Number.parseInt(parts[1], 10) || 0,
+    }
+  } catch {
+    return { ahead: 0, behind: 0 }
+  }
+}
+
 async function pullRebase(): Promise<void> {
   const g = ensureGit()
   try {
@@ -836,5 +851,6 @@ export {
   pushToOrigin,
   forcePushToOrigin,
   pullRebase,
+  getSyncStatus,
 }
 export type { CommitInfo, BranchInfo, FileChange, FileDiff }

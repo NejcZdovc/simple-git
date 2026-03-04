@@ -69,6 +69,7 @@ interface GitApi {
   pushToOrigin(): Promise<void>
   forcePushToOrigin(): Promise<void>
   pullRebase(): Promise<void>
+  getSyncStatus(branch: string): Promise<{ ahead: number; behind: number }>
   startWorktreeWatcher(): Promise<void>
   stopWorktreeWatcher(): Promise<void>
 

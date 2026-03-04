@@ -23,6 +23,7 @@ let viewMode: 'commits' | 'local-changes' = 'commits'
 let commitSelectedBtn: HTMLButtonElement | null = null
 let diffVersion = 0
 let localChangesVersion = 0
+let syncInterval: ReturnType<typeof setInterval> | null = null
 
 const panelIds: Record<string, string> = {
   commits: 'commit-list-panel',
@@ -185,6 +186,7 @@ async function loadLocalChanges() {
         localChangesListEl.innerHTML = ''
         await loadLocalChanges()
         await refreshCommitList()
+        checkSyncStatus()
         toast.show(isAmend ? 'Commit amended successfully' : 'Changes committed successfully')
       } catch (err) {
         alert(`${isAmend ? 'Amend' : 'Commit'} failed: ${err}`)
@@ -206,6 +208,7 @@ async function loadLocalChanges() {
         localChangesListEl.innerHTML = ''
         await loadLocalChanges()
         await refreshCommitList()
+        checkSyncStatus()
         toast.show(isAmend ? 'Commit amended successfully' : 'Changes committed successfully')
       } catch (err) {
         alert(`${isAmend ? 'Amend' : 'Commit'} failed: ${err}`)
@@ -456,6 +459,8 @@ window.git.onGitChanged(async () => {
   if (viewMode === 'local-changes') {
     await loadLocalChanges()
   }
+
+  checkSyncStatus()
 })
 
 settingsDialog.setOnDiffViewModeChange(() => {
@@ -506,6 +511,60 @@ document.addEventListener('mouseup', () => {
   document.body.classList.remove('select-none')
 })
 
+let syncCheckInFlight = false
+
+async function checkSyncStatus() {
+  if (syncCheckInFlight) return
+  syncCheckInFlight = true
+  try {
+    const branch = branchSelector.getCurrentBranch()
+    if (!branch) return
+    const status = await window.git.getSyncStatus(branch)
+    branchSelector.setSyncStatus(status)
+  } catch {
+    // Sync check failures should never break the UI
+  } finally {
+    syncCheckInFlight = false
+  }
+}
+
+function startSyncInterval() {
+  stopSyncInterval()
+  syncInterval = setInterval(checkSyncStatus, 30_000)
+}
+
+function stopSyncInterval() {
+  if (syncInterval) {
+    clearInterval(syncInterval)
+    syncInterval = null
+  }
+}
+
+window.addEventListener('focus', () => {
+  checkSyncStatus()
+  startSyncInterval()
+})
+
+window.addEventListener('blur', () => {
+  stopSyncInterval()
+})
+
+branchSelector.setOnSyncClick(async () => {
+  try {
+    await window.git.pullRebase()
+    await refreshCommitList()
+    await checkSyncStatus()
+    toast.show('Pulled from origin successfully')
+  } catch (err) {
+    const msg = String(err)
+    if (msg.includes('unstaged changes')) {
+      alert('You have unstaged changes. Please commit or stash them.')
+    } else {
+      alert(`Pull rebase failed: ${msg}`)
+    }
+  }
+})
+
 async function openProject(path: string) {
   try {
     await window.git.openRepo(path)
@@ -518,6 +577,11 @@ async function openProject(path: string) {
     await loadLog(current)
     fileTree.clear()
     diffViewer.clear()
+
+    checkSyncStatus()
+    if (document.hasFocus()) {
+      startSyncInterval()
+    }
 
     const changes = await window.git.getLocalChanges()
     if (changes.length > 0) {
@@ -742,6 +806,7 @@ commandPalette.setOnSelect(async (item) => {
             fileTree.setMultiSelect(false)
           }
           await refreshCommitList()
+          checkSyncStatus()
           toast.show('Pushed to origin successfully')
         } catch (err) {
           if (confirm('Push was rejected. Pull with rebase and try again?')) {
@@ -753,6 +818,7 @@ commandPalette.setOnSelect(async (item) => {
                 fileTree.setMultiSelect(false)
               }
               await refreshCommitList()
+              checkSyncStatus()
               toast.show('Pulled and pushed to origin successfully')
             } catch (retryErr) {
               alert(`Pull rebase failed: ${retryErr}`)
@@ -768,6 +834,7 @@ commandPalette.setOnSelect(async (item) => {
             fileTree.setMultiSelect(false)
           }
           await refreshCommitList()
+          checkSyncStatus()
           toast.show('Force pushed to origin successfully')
         } catch (err) {
           if (confirm('Force push was rejected. Pull with rebase and try again?')) {
@@ -779,6 +846,7 @@ commandPalette.setOnSelect(async (item) => {
                 fileTree.setMultiSelect(false)
               }
               await refreshCommitList()
+              checkSyncStatus()
               toast.show('Pulled and force pushed to origin successfully')
             } catch (retryErr) {
               alert(`Pull rebase failed: ${retryErr}`)

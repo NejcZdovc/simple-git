@@ -18,6 +18,7 @@ import {
   getLocalChangesWithStats,
   getLocalFileDiff,
   getLog,
+  getSyncStatus,
   openRepo,
   pullRebase,
   pushToOrigin,
@@ -105,6 +106,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:push-to-origin', () => withSuppressedWatcher(() => pushToOrigin()))
   ipcMain.handle('git:force-push-to-origin', () => withSuppressedWatcher(() => forcePushToOrigin()))
   ipcMain.handle('git:pull-rebase', () => withSuppressedWatcher(() => pullRebase()))
+  ipcMain.handle('git:get-sync-status', (_e, branch: string) => getSyncStatus(branch))
   ipcMain.handle('git:start-worktree-watcher', () => startWorktreeWatcher())
   ipcMain.handle('git:stop-worktree-watcher', () => stopWorktreeWatcher())
 

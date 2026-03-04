@@ -32,6 +32,8 @@ interface GitApi {
     filePath: string,
   ): Promise<{ oldContent: string; newContent: string; filePath: string; status: string; tooLarge?: boolean }>
   discardLocalChanges(): Promise<void>
+  discardLocalFile(filePath: string): Promise<void>
+  discardLocalFolder(folderPath: string): Promise<void>
   checkoutBranch(branch: string): Promise<void>
   stashAndCheckout(branch: string): Promise<void>
   discardAndCheckout(branch: string): Promise<void>

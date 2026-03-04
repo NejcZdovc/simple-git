@@ -206,6 +206,47 @@ async function discardLocalChanges(): Promise<void> {
   await g.clean('f', ['-d'])
 }
 
+async function discardLocalFile(filePath: string): Promise<void> {
+  if (!repoPath) throw new Error('No repository opened')
+  safeResolvePath(repoPath, filePath)
+  const g = ensureGit()
+
+  const status = await g.status()
+  const file = status.files.find((f) => f.path === filePath)
+  if (!file) throw new Error('File has no local changes')
+
+  if (file.working_dir === '?') {
+    const fs = await import('node:fs/promises')
+    const fullPath = safeResolvePath(repoPath, filePath)
+    await fs.unlink(fullPath)
+  } else {
+    await g.checkout(['--', filePath])
+  }
+}
+
+async function discardLocalFolder(folderPath: string): Promise<void> {
+  if (!repoPath) throw new Error('No repository opened')
+  safeResolvePath(repoPath, folderPath)
+  const g = ensureGit()
+
+  const status = await g.status()
+  const trackedFiles = status.files
+    .filter((f) => f.working_dir !== '?' && f.path.startsWith(`${folderPath}/`))
+    .map((f) => f.path)
+  const untrackedFiles = status.files
+    .filter((f) => f.working_dir === '?' && f.path.startsWith(`${folderPath}/`))
+    .map((f) => f.path)
+
+  if (trackedFiles.length > 0) {
+    await g.checkout(['--', ...trackedFiles])
+  }
+  for (const f of untrackedFiles) {
+    const fs = await import('node:fs/promises')
+    const fullPath = safeResolvePath(repoPath, f)
+    await fs.unlink(fullPath)
+  }
+}
+
 async function checkoutBranch(branch: string): Promise<void> {
   validateBranchName(branch)
   const g = ensureGit()
@@ -776,6 +817,8 @@ export {
   getLocalChangesWithStats,
   getLocalFileDiff,
   discardLocalChanges,
+  discardLocalFile,
+  discardLocalFolder,
   checkoutBranch,
   stashAndCheckout,
   discardAndCheckout,

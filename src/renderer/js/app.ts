@@ -327,6 +327,16 @@ fileTree.setCallbacks({
     await showCurrentDiff()
   },
   onFileRevert: async (path) => {
+    if (viewMode === 'local-changes') {
+      try {
+        await window.git.discardLocalFile(path)
+        await loadLocalChanges()
+      } catch (err) {
+        console.error('Failed to discard file:', err)
+        alert(`Failed to discard file: ${err}`)
+      }
+      return
+    }
     if (!currentCommit) return
     try {
       await window.git.revertFile(currentCommit.hash, path)
@@ -338,6 +348,16 @@ fileTree.setCallbacks({
     }
   },
   onFolderRevert: async (folderPath) => {
+    if (viewMode === 'local-changes') {
+      try {
+        await window.git.discardLocalFolder(folderPath)
+        await loadLocalChanges()
+      } catch (err) {
+        console.error('Failed to discard folder:', err)
+        alert(`Failed to discard folder: ${err}`)
+      }
+      return
+    }
     if (!currentCommit) return
     try {
       await window.git.revertFolder(currentCommit.hash, folderPath)
@@ -848,7 +868,12 @@ document.addEventListener('keydown', (e) => {
   const tag = (e.target as HTMLElement).tagName
   const isTabKey = e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey
   const isGlobalShortcut = (e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'f')
-  if ((tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') && !isGlobalShortcut && !(isTabKey && viewMode === 'local-changes')) return
+  if (
+    (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') &&
+    !isGlobalShortcut &&
+    !(isTabKey && viewMode === 'local-changes')
+  )
+    return
 
   // Ignore if file search or command palette is open (they handle their own keys)
   if (fileSearch.isVisible()) return

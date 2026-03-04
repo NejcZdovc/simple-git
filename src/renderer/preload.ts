@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('git', {
   getLocalChangesWithStats: () => ipcRenderer.invoke('git:get-local-changes-with-stats'),
   getLocalFileDiff: (filePath: string) => ipcRenderer.invoke('git:get-local-file-diff', filePath),
   discardLocalChanges: () => ipcRenderer.invoke('git:discard-local-changes'),
+  discardLocalFile: (filePath: string) => ipcRenderer.invoke('git:discard-local-file', filePath),
+  discardLocalFolder: (folderPath: string) => ipcRenderer.invoke('git:discard-local-folder', folderPath),
   checkoutBranch: (branch: string) => ipcRenderer.invoke('git:checkout-branch', branch),
   stashAndCheckout: (branch: string) => ipcRenderer.invoke('git:stash-and-checkout', branch),
   discardAndCheckout: (branch: string) => ipcRenderer.invoke('git:discard-and-checkout', branch),

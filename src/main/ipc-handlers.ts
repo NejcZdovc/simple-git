@@ -6,6 +6,8 @@ import {
   commitFiles,
   discardAndCheckout,
   discardLocalChanges,
+  discardLocalFile,
+  discardLocalFolder,
   dropCommit,
   forcePushToOrigin,
   getBranches,
@@ -64,6 +66,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle('git:get-local-changes-with-stats', () => getLocalChangesWithStats())
   ipcMain.handle('git:get-local-file-diff', (_e, filePath: string) => getLocalFileDiff(filePath))
   ipcMain.handle('git:discard-local-changes', () => withSuppressedWatcher(() => discardLocalChanges()))
+  ipcMain.handle('git:discard-local-file', (_e, filePath: string) =>
+    withSuppressedWatcher(() => discardLocalFile(filePath)),
+  )
+  ipcMain.handle('git:discard-local-folder', (_e, folderPath: string) =>
+    withSuppressedWatcher(() => discardLocalFolder(folderPath)),
+  )
   ipcMain.handle('git:checkout-branch', (_e, branch: string) => withSuppressedWatcher(() => checkoutBranch(branch)))
   ipcMain.handle('git:stash-and-checkout', (_e, branch: string) =>
     withSuppressedWatcher(() => stashAndCheckout(branch)),

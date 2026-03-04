@@ -510,18 +510,36 @@ async function squashCommits(hashes: string[], message: string): Promise<void> {
     validateHash(hash)
   }
 
+  // Bail out early if working tree is dirty — mid-history squash uses reset --hard
+  const status = await g.status()
+  if (status.files.length > 0) {
+    throw new Error('You have uncommitted changes. Please commit or stash them before squashing.')
+  }
+
   // Get the full commit log from HEAD to verify contiguity
   const hashSet = new Set(hashes)
 
   // Walk back from HEAD enough commits to cover all selected
-  const logResult = await g.raw(['log', '--format=%H', `-n`, `${hashes.length + 10}`])
-  const headLog = logResult.trim().split('\n').filter(Boolean)
+  let logResult = await g.raw(['log', '--format=%H', `-n`, `${hashes.length + 50}`])
+  let headLog = logResult.trim().split('\n').filter(Boolean)
 
   // Find the indices of selected commits in the log
-  const indices: number[] = []
+  let indices: number[] = []
   for (const h of headLog) {
     if (hashSet.has(h)) {
       indices.push(headLog.indexOf(h))
+    }
+  }
+
+  // Retry with deeper log if some hashes weren't found
+  if (indices.length !== hashes.length) {
+    logResult = await g.raw(['log', '--format=%H', `-n`, `500`])
+    headLog = logResult.trim().split('\n').filter(Boolean)
+    indices = []
+    for (const h of headLog) {
+      if (hashSet.has(h)) {
+        indices.push(headLog.indexOf(h))
+      }
     }
   }
 
@@ -530,11 +548,6 @@ async function squashCommits(hashes: string[], message: string): Promise<void> {
   }
 
   indices.sort((a, b) => a - b)
-
-  // Must include HEAD (index 0)
-  if (indices[0] !== 0) {
-    throw new Error('Squash must include the most recent commit (HEAD)')
-  }
 
   // Must be contiguous
   for (let i = 1; i < indices.length; i++) {
@@ -555,9 +568,45 @@ async function squashCommits(hashes: string[], message: string): Promise<void> {
 
   const parentHash = (await g.raw(['rev-parse', `${oldestHash}^`])).trim()
 
-  // Soft reset to the parent of the oldest commit, then recommit
-  await g.raw(['reset', '--soft', parentHash])
-  await g.raw(['commit', '-m', message])
+  if (indices[0] === 0) {
+    // HEAD-inclusive: fast path with reset --soft
+    await g.raw(['reset', '--soft', parentHash])
+    await g.raw(['commit', '-m', message])
+  } else {
+    // Mid-history: cherry-pick approach
+    const originalHead = (await g.raw(['rev-parse', 'HEAD'])).trim()
+
+    // Commits between HEAD and the newest squash commit (oldest-first for cherry-pick)
+    const commitsAbove = headLog.slice(0, indices[0]).reverse()
+
+    try {
+      // Reset to the parent of the oldest squash commit
+      await g.raw(['reset', '--hard', parentHash])
+
+      // Cherry-pick all squash commits (oldest-first) without committing
+      const squashHashes = headLog.slice(indices[0], indices[indices.length - 1] + 1).reverse()
+      for (const h of squashHashes) {
+        await g.raw(['cherry-pick', '--no-commit', h])
+      }
+
+      // Create the squashed commit
+      await g.raw(['commit', '-m', message])
+
+      // Replay commits above the squash range
+      for (const h of commitsAbove) {
+        await g.raw(['cherry-pick', h])
+      }
+    } catch (err) {
+      // Recover: abort any in-progress cherry-pick and restore original HEAD
+      try {
+        await g.raw(['cherry-pick', '--abort'])
+      } catch {
+        // cherry-pick --abort may fail if no cherry-pick is in progress
+      }
+      await g.raw(['reset', '--hard', originalHead])
+      throw new Error(`Squash failed and changes were rolled back. ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
 }
 
 async function getCommitMessage(ref: string): Promise<string> {
